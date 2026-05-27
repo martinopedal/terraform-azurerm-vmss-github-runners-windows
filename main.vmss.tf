@@ -1,3 +1,9 @@
+resource "random_password" "admin_password" {
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
 # Virtual Machine Scale Set for Windows GitHub Runners
 resource "azapi_resource" "vmss_windows" {
   type      = "Microsoft.Compute/virtualMachineScaleSets@2024-07-01"
@@ -40,8 +46,8 @@ resource "azapi_resource" "vmss_windows" {
 
         osProfile = {
           computerNamePrefix = substr(var.vmss_name, 0, 9)
-          adminUsername      = "azureuser"
-          adminPassword      = "P@ssw0rd1234!" # Placeholder - not used (managed by AAD)
+          adminUsername      = var.admin_username
+          adminPassword      = coalesce(var.admin_password, random_password.admin_password.result)
           windowsConfiguration = {
             provisionVMAgent       = true
             enableAutomaticUpdates = true
@@ -50,6 +56,8 @@ resource "azapi_resource" "vmss_windows" {
         }
 
         storageProfile = {
+          diskControllerType = var.disk_controller_type
+
           imageReference = {
             publisher = "MicrosoftWindowsServer"
             offer     = "WindowsServer"
@@ -102,7 +110,7 @@ resource "azapi_resource" "vmss_windows" {
                 autoUpgradeMinorVersion = true
                 protectedSettings = {
                   fileUris = [
-                    "https://raw.githubusercontent.com/actions/runner/main/README.md" # Placeholder URL
+                    var.bootstrap_script_url
                   ]
                   commandToExecute = "powershell.exe -ExecutionPolicy Unrestricted -File register-windows-runner.ps1 -KeyVaultName ${var.key_vault_name} -GithubOwner ${var.github_owner} -GithubRepoList \"${join(",", var.github_repo_list)}\" -RunnerLabels \"${join(",", var.runner_labels)}\" -RunnerVersion ${var.runner_version}"
                 }

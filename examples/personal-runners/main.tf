@@ -18,16 +18,17 @@ module "windows_runners" {
   vmss_capacity = var.vmss_capacity
   vmss_zones    = var.vmss_zones
 
-  key_vault_name   = var.key_vault_name
-  github_owner     = var.github_owner
-  github_repo_list = var.github_repo_list
-  runner_labels    = var.runner_labels
+  key_vault_name       = var.key_vault_name
+  github_owner         = var.github_owner
+  github_repo_list     = var.github_repo_list
+  bootstrap_script_url = var.bootstrap_script_url
+  runner_labels        = var.runner_labels
 
-  priority_mix_base_regular_count   = var.priority_mix_base_regular_count
-  priority_mix_regular_percent_base = var.priority_mix_regular_percent_base
+  priority_mix_base_regular_count            = var.priority_mix_base_regular_count
+  priority_mix_regular_percentage_above_base = var.priority_mix_regular_percentage_above_base
 
-  dsc_configuration_mode_frequency_mins = var.dsc_configuration_mode_frequency_mins
-  auto_repair_grace_period              = var.auto_repair_grace_period
+  dsc_configuration_mode_frequency_mins  = var.dsc_configuration_mode_frequency_mins
+  automatic_instance_repair_grace_period = var.automatic_instance_repair_grace_period
 
   enable_telemetry = var.enable_telemetry
   tags             = var.tags

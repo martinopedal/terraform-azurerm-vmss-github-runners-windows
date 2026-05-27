@@ -19,6 +19,11 @@ variable "subnet_id" {
   type        = string
 }
 
+variable "bootstrap_script_url" {
+  description = "HTTPS URL for scripts/register-windows-runner.ps1. Pin this to a release tag in consumers."
+  type        = string
+}
+
 variable "vmss_name" {
   description = "Name of the Virtual Machine Scale Set"
   type        = string
@@ -67,6 +72,19 @@ variable "runner_version" {
   description = "GitHub Actions runner version"
   type        = string
   default     = "2.319.1"
+}
+
+variable "admin_username" {
+  description = "Local administrator username for VMSS provisioning. Password authentication should remain inaccessible from the network."
+  type        = string
+  default     = "azureuser"
+}
+
+variable "admin_password" {
+  description = "Optional local administrator password. If null, the module generates one."
+  type        = string
+  default     = null
+  sensitive   = true
 }
 
 variable "priority_mix_base_regular_count" {

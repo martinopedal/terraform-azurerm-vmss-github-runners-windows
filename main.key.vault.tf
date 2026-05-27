@@ -32,7 +32,7 @@ resource "azapi_resource" "key_vault_vmss_windows" {
 # RBAC: Grant UAMI Key Vault Secrets User on the Key Vault
 resource "azapi_resource" "rbac_kv_secrets_user" {
   type      = "Microsoft.Authorization/roleAssignments@2022-04-01"
-  name      = uuid()
+  name      = uuidv5("url", "${azapi_resource.key_vault_vmss_windows.id}/${azapi_resource.uami_vmss_windows.identity[0].principal_id}/4633458b-17de-408a-b874-0445c86b69e6")
   parent_id = azapi_resource.key_vault_vmss_windows.id
 
   body = {

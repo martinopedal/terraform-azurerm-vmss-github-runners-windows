@@ -12,11 +12,3 @@ resource "azapi_resource" "uami_vmss_windows" {
 
 # Data source for current client config
 data "azurerm_client_config" "current" {}
-
-# Data source for UAMI identity (needed for outputs)
-data "azurerm_user_assigned_identity" "vmss_windows" {
-  name                = azapi_resource.uami_vmss_windows.name
-  resource_group_name = var.resource_group_name
-
-  depends_on = [azapi_resource.uami_vmss_windows]
-}
