@@ -73,6 +73,12 @@ variable "github_repo_list" {
   type        = list(string)
 }
 
+variable "bootstrap_script_url" {
+  description = "HTTPS URL for scripts/register-windows-runner.ps1. Pin this to a release tag."
+  type        = string
+  default     = "https://raw.githubusercontent.com/martinopedal/terraform-azurerm-vmss-github-runners-windows/v1.0.0/scripts/register-windows-runner.ps1"
+}
+
 variable "runner_labels" {
   description = "Runner labels. Canonical personal Windows scheme is the 2-label compound [self-hosted, personal-windows]."
   type        = list(string)
@@ -85,7 +91,7 @@ variable "priority_mix_base_regular_count" {
   default     = 1
 }
 
-variable "priority_mix_regular_percent_base" {
+variable "priority_mix_regular_percentage_above_base" {
   description = "Percent of scale-out capacity that is Regular (0 = all Spot beyond the base)."
   type        = number
   default     = 0
@@ -97,7 +103,7 @@ variable "dsc_configuration_mode_frequency_mins" {
   default     = 15
 }
 
-variable "auto_repair_grace_period" {
+variable "automatic_instance_repair_grace_period" {
   description = "VMSS auto-repair grace period (ISO 8601 duration)."
   type        = string
   default     = "PT30M"
