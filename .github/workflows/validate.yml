@@ -10,9 +10,15 @@ permissions:
   contents: read
 
 jobs:
+  decide-runner:
+    uses: martinopedal/github-runners-alz-corp-cookbook/.github/workflows/decide-runner.yml@v1
+    with:
+      self-hosted-labels: '["self-hosted", "personal", "pub", "linux"]'
+
   terraform:
+    needs: decide-runner
     name: Terraform
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.decide-runner.outputs.runner-labels) }}
     strategy:
       fail-fast: false
       matrix:
@@ -40,8 +46,9 @@ jobs:
         run: terraform validate
 
   tflint:
+    needs: decide-runner
     name: TFLint
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.decide-runner.outputs.runner-labels) }}
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
