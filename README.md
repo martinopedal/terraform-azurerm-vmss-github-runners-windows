@@ -25,10 +25,11 @@ The module does not create the resource group, VNet, subnet, NAT Gateway, GitHub
 
 ## Usage
 
+Pin consumers to the release tag so VMSS bootstrap behavior is reproducible:
+
 ```hcl
 module "windows_runners" {
-  source  = "martinopedal/vmss-github-runners-windows/azurerm"
-  version = "1.0.0"
+  source = "github.com/martinopedal/terraform-azurerm-vmss-github-runners-windows?ref=v0.1.0"
 
   location             = "swedencentral"
   resource_group_name  = "rg-pool-w-personal-swedencentral-001"
@@ -37,8 +38,8 @@ module "windows_runners" {
   key_vault_name       = "kv-pool-w-personal-001"
   github_owner         = "martinopedal"
   github_repo_list     = ["personal-runners-infra"]
-  bootstrap_script_url = "https://raw.githubusercontent.com/martinopedal/terraform-azurerm-vmss-github-runners-windows/v1.0.0/scripts/register-windows-runner.ps1"
-  runner_labels        = ["self-hosted", "personal-windows"]
+  bootstrap_script_url = "https://raw.githubusercontent.com/martinopedal/terraform-azurerm-vmss-github-runners-windows/v0.1.0/scripts/register-windows-runner.ps1"
+  runner_labels        = ["self-hosted", "personal", "windows", "x64", "vmss"]
 
   enable_telemetry = true
 
@@ -51,7 +52,7 @@ module "windows_runners" {
 
 ## Example
 
-See `examples/personal-runners` for a complete example that reads an existing runner subnet and deploys the module into it.
+See `examples/personal-runners` for a complete sub-5 personal example that reads an existing NAT Gateway backed runner subnet and deploys a single VMSS with priorityMixPolicy spot and regular mix into it. Firewall audit requirements are documented in `docs/FIREWALL-REQUIREMENTS.md`.
 
 ## Bootstrap script
 
@@ -63,7 +64,7 @@ The module expects a GitHub App private key in Key Vault as `github-app-private-
 
 ## Registry status
 
-The repository name follows the Terraform Registry naming convention for `martinopedal/vmss-github-runners-windows/azurerm`. If it is not visible in the registry after release, Martin needs to sign in to registry.terraform.io, choose Publish module, select this GitHub repository, and publish from the `v1.0.0` tag.
+The repository name follows the Terraform Registry naming convention for `martinopedal/vmss-github-runners-windows/azurerm`. If it is not visible in the registry after release, Martin needs to sign in to registry.terraform.io, choose Publish module, select this GitHub repository, and publish from the `v0.1.0` tag.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements

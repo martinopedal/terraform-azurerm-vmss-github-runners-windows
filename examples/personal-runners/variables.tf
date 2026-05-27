@@ -76,13 +76,13 @@ variable "github_repo_list" {
 variable "bootstrap_script_url" {
   description = "HTTPS URL for scripts/register-windows-runner.ps1. Pin this to a release tag."
   type        = string
-  default     = "https://raw.githubusercontent.com/martinopedal/terraform-azurerm-vmss-github-runners-windows/v1.0.0/scripts/register-windows-runner.ps1"
+  default     = "https://raw.githubusercontent.com/martinopedal/terraform-azurerm-vmss-github-runners-windows/v0.1.0/scripts/register-windows-runner.ps1"
 }
 
 variable "runner_labels" {
-  description = "Runner labels. Canonical personal Windows scheme is the 2-label compound [self-hosted, personal-windows]."
+  description = "Runner labels. Canonical personal Windows scheme is [self-hosted, personal, windows, x64, vmss]."
   type        = list(string)
-  default     = ["self-hosted", "personal-windows"]
+  default     = ["self-hosted", "personal", "windows", "x64", "vmss"]
 }
 
 variable "priority_mix_base_regular_count" {

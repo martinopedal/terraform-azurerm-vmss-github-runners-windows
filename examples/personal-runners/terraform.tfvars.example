@@ -9,4 +9,4 @@ github_repo_list = ["personal-runners-infra", "azure-analyzer"]
 # resource_group_name   = "rg-pool-w-personal-swedencentral-001"
 # vmss_sku              = "Standard_D8ds_v6"
 # vmss_capacity         = 1
-# runner_labels         = ["self-hosted", "personal-windows"]
+# runner_labels         = ["self-hosted", "personal", "windows", "x64", "vmss"]
