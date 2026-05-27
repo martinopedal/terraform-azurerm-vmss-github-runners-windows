@@ -1,79 +1,34 @@
-# Example: Personal Windows GitHub Runners on VMSS
-
-terraform {
-  required_version = ">= 1.9.0"
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 4.20"
-    }
-  }
-}
-
-provider "azurerm" {
-  features {}
-}
-
-# Reference existing subnet
 data "azurerm_subnet" "runner_subnet" {
-  name                 = "subnet-pool-w-personal"
-  virtual_network_name = "vnet-pool-w-personal-swedencentral"
-  resource_group_name  = "rg-network-pool-w-personal-swedencentral"
+  name                 = var.subnet_name
+  virtual_network_name = var.vnet_name
+  resource_group_name  = var.vnet_resource_group_name
 }
 
-# Windows VMSS Runners module
 module "windows_runners" {
-  source = "git::https://github.com/martinopedal/terraform-azurerm-vmss-github-runners-windows.git?ref=v0.1.0"
+  source = "../../"
+  # In real consumers, pin to a tag instead of the relative path:
+  # source = "git::https://github.com/martinopedal/terraform-azurerm-vmss-github-runners-windows.git?ref=v0.1.0"
 
-  location            = "swedencentral"
-  resource_group_name = "rg-pool-w-personal-swedencentral-001"
+  location            = var.location
+  resource_group_name = var.resource_group_name
   subnet_id           = data.azurerm_subnet.runner_subnet.id
 
-  vmss_name     = "vmss-pool-w-personal"
-  vmss_sku      = "Standard_D8ds_v6"
-  vmss_capacity = 1
+  vmss_name     = var.vmss_name
+  vmss_sku      = var.vmss_sku
+  vmss_capacity = var.vmss_capacity
+  vmss_zones    = var.vmss_zones
 
-  # GitHub configuration
-  key_vault_name   = "kv-pool-w-personal-xyz"
-  github_owner     = "martinopedal"
-  github_repo_list = ["personal-runners-infra", "azure-analyzer"]
-  runner_labels    = ["self-hosted", "personal", "windows", "x64"]
+  key_vault_name   = var.key_vault_name
+  github_owner     = var.github_owner
+  github_repo_list = var.github_repo_list
+  runner_labels    = var.runner_labels
 
-  # Priority Mix: 1 Regular base, all scale-out uses Spot
-  priority_mix_base_regular_count   = 1
-  priority_mix_regular_percent_base = 0
+  priority_mix_base_regular_count   = var.priority_mix_base_regular_count
+  priority_mix_regular_percent_base = var.priority_mix_regular_percent_base
 
-  # DSC self-heal frequency
-  dsc_configuration_mode_frequency_mins = 15
+  dsc_configuration_mode_frequency_mins = var.dsc_configuration_mode_frequency_mins
+  auto_repair_grace_period              = var.auto_repair_grace_period
 
-  # VMSS auto-repair grace period
-  auto_repair_grace_period = "PT30M"
-
-  # Multi-zone Spot placement
-  vmss_zones = ["1", "2", "3"]
-
-  enable_telemetry = true
-
-  tags = {
-    environment = "personal"
-    managed-by  = "terraform"
-    lifecycle   = "permanent"
-    owner       = "martinopedal"
-  }
-}
-
-# Outputs
-output "vmss_id" {
-  description = "Resource ID of the VMSS"
-  value       = module.windows_runners.vmss_id
-}
-
-output "vmss_name" {
-  description = "Name of the VMSS"
-  value       = module.windows_runners.vmss_name
-}
-
-output "key_vault_name" {
-  description = "Name of the Key Vault"
-  value       = module.windows_runners.key_vault_name
+  enable_telemetry = var.enable_telemetry
+  tags             = var.tags
 }
