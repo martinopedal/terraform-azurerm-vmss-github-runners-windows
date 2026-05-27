@@ -23,12 +23,22 @@ Use this module only for the personal Windows runner pool on sub-5. Sub-5 is out
 
 The module does not create the resource group, VNet, subnet, NAT Gateway, GitHub App, or GitHub repository permissions. Those stay in the consuming runner estate.
 
+## ALZ hardening audit
+
+The v1.0.1 audit checked the three known `personal-runners-infra` Windows VMSS bug patterns before migration to this module:
+
+| Pattern | Module status | Migration implication |
+| --- | --- | --- |
+| Key Vault secret expiration | Not applicable: this module creates the Key Vault, but no `azurerm_key_vault_secret` resources. | Secret creation remains consumer-owned; any consumer-created secret must set an ALZ-policy-safe expiration, such as 180 days. |
+| DSC storage blob upload RBAC | Not applicable: this module creates no storage account and uploads no `azurerm_storage_blob` DSC artifact. | If a consumer adds DSC artifacts in Storage, configure the provider with `storage_use_azuread = true` and grant the Terraform principal `Storage Blob Data Contributor` on that storage account. |
+| Windows DCR schema | Not applicable: this module creates no DCR through `azurerm_monitor_data_collection_rule` or AzAPI `dataCollectionRules`. | DCRs stay consumer-owned; Windows DCRs must use `kind = "Windows"` and valid `windowsEventLogs`, `performanceCounters`, and `dataFlow` arrays. |
+
 ## Usage
 
 ```hcl
 module "windows_runners" {
   source  = "martinopedal/vmss-github-runners-windows/azurerm"
-  version = "1.0.0"
+  version = "1.0.1"
 
   location             = "swedencentral"
   resource_group_name  = "rg-pool-w-personal-swedencentral-001"
@@ -37,7 +47,7 @@ module "windows_runners" {
   key_vault_name       = "kv-pool-w-personal-001"
   github_owner         = "martinopedal"
   github_repo_list     = ["personal-runners-infra"]
-  bootstrap_script_url = "https://raw.githubusercontent.com/martinopedal/terraform-azurerm-vmss-github-runners-windows/v1.0.0/scripts/register-windows-runner.ps1"
+  bootstrap_script_url = "https://raw.githubusercontent.com/martinopedal/terraform-azurerm-vmss-github-runners-windows/v1.0.1/scripts/register-windows-runner.ps1"
   runner_labels        = ["self-hosted", "personal-windows"]
 
   enable_telemetry = true
@@ -63,7 +73,7 @@ The module expects a GitHub App private key in Key Vault as `github-app-private-
 
 ## Registry status
 
-The repository name follows the Terraform Registry naming convention for `martinopedal/vmss-github-runners-windows/azurerm`. If it is not visible in the registry after release, Martin needs to sign in to registry.terraform.io, choose Publish module, select this GitHub repository, and publish from the `v1.0.0` tag.
+The repository name follows the Terraform Registry naming convention for `martinopedal/vmss-github-runners-windows/azurerm`. If it is not visible in the registry after release, Martin needs to sign in to registry.terraform.io, choose Publish module, select this GitHub repository, and publish from the `v1.0.1` tag.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
