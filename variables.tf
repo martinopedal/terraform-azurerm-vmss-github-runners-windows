@@ -20,8 +20,15 @@ variable "subnet_id" {
 }
 
 variable "bootstrap_script_url" {
-  description = "HTTPS URL for scripts/register-windows-runner.ps1. Pin this to a release tag in consumers."
+  description = "HTTPS URL for scripts/register-windows-runner.ps1. Pin this to a release tag in consumers. Mutually exclusive with bootstrap_script_inline_base64; one of the two must be set."
   type        = string
+  default     = null
+}
+
+variable "bootstrap_script_inline_base64" {
+  description = "Optional inline bootstrap script (base64-encoded UTF-8 of register-windows-runner.ps1). When set, the script is delivered via VMSS userData and decoded by the CSE at boot, avoiding any HTTPS fetch. Mutually exclusive with bootstrap_script_url."
+  type        = string
+  default     = null
 }
 
 variable "vmss_name" {
@@ -48,8 +55,39 @@ variable "vmss_zones" {
 }
 
 variable "key_vault_name" {
-  description = "Name of the Key Vault for GitHub App private key storage"
+  description = "Name of the Key Vault to create for GitHub App private key storage. Required when key_vault_resource_id is null. Ignored when BYO Key Vault is supplied."
   type        = string
+  default     = null
+}
+
+variable "key_vault_resource_id" {
+  description = "Optional resource ID of an existing Key Vault to use instead of creating one. When set, the module skips KV creation and only assigns the UAMI the Key Vault Secrets User role on this vault."
+  type        = string
+  default     = null
+}
+
+variable "key_vault_purge_protection_enabled" {
+  description = "Whether to enable purge protection on the module-created Key Vault. Ignored when a BYO Key Vault is supplied. Defaults to true for production hardening; set to false in ephemeral/test environments where vaults need to be hard-deleted."
+  type        = bool
+  default     = true
+}
+
+variable "user_assigned_managed_identity_resource_id" {
+  description = "Optional resource ID of an existing User-Assigned Managed Identity. When set, the module skips UAMI creation and attaches this identity to the VMSS instead, looking up its principalId for RBAC."
+  type        = string
+  default     = null
+}
+
+variable "windows_image_sku" {
+  description = "Windows Server image SKU. Use '2025-datacenter-azure-edition' when enable_hotpatching = true."
+  type        = string
+  default     = "2022-datacenter-azure-edition"
+}
+
+variable "enable_hotpatching" {
+  description = "Enable Windows Server hotpatching. Requires windows_image_sku to include '2025-datacenter-azure-edition'. When true, patchMode is set to AutomaticByPlatform and hotpatching is enabled on the VMSS patchSettings."
+  type        = bool
+  default     = false
 }
 
 variable "github_owner" {

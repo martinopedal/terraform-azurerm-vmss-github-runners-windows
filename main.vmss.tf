@@ -14,7 +14,7 @@ resource "azapi_resource" "vmss_windows" {
   identity {
     type = "UserAssigned"
     identity_ids = [
-      azapi_resource.uami_vmss_windows.id
+      local.uami_id
     ]
   }
 
@@ -48,12 +48,28 @@ resource "azapi_resource" "vmss_windows" {
           computerNamePrefix = substr(var.vmss_name, 0, 9)
           adminUsername      = var.admin_username
           adminPassword      = coalesce(var.admin_password, random_password.admin_password.result)
-          windowsConfiguration = {
-            provisionVMAgent       = true
-            enableAutomaticUpdates = true
-            timeZone               = "UTC"
-          }
+          windowsConfiguration = merge(
+            {
+              provisionVMAgent       = true
+              enableAutomaticUpdates = true
+              timeZone               = "UTC"
+            },
+            var.enable_hotpatching ? {
+              patchSettings = {
+                patchMode         = "AutomaticByPlatform"
+                enableHotpatching = true
+                assessmentMode    = "AutomaticByPlatform"
+                automaticByPlatformSettings = {
+                  rebootSetting = "IfRequired"
+                }
+              }
+            } : {}
+          )
         }
+
+        # Optional inline bootstrap: base64-encoded register-windows-runner.ps1 is
+        # surfaced to the instance via VMSS userData and decoded by the CSE at boot.
+        userData = local.use_inline_bootstrap ? var.bootstrap_script_inline_base64 : null
 
         storageProfile = {
           diskControllerType = var.disk_controller_type
@@ -61,7 +77,7 @@ resource "azapi_resource" "vmss_windows" {
           imageReference = {
             publisher = "MicrosoftWindowsServer"
             offer     = "WindowsServer"
-            sku       = "2022-datacenter-azure-edition"
+            sku       = var.windows_image_sku
             version   = "latest"
           }
           osDisk = {
@@ -108,12 +124,7 @@ resource "azapi_resource" "vmss_windows" {
                 type                    = "CustomScriptExtension"
                 typeHandlerVersion      = "1.10"
                 autoUpgradeMinorVersion = true
-                protectedSettings = {
-                  fileUris = [
-                    var.bootstrap_script_url
-                  ]
-                  commandToExecute = "powershell.exe -ExecutionPolicy Unrestricted -File register-windows-runner.ps1 -KeyVaultName ${var.key_vault_name} -GithubOwner ${var.github_owner} -GithubRepoList \"${join(",", var.github_repo_list)}\" -RunnerLabels \"${join(",", var.runner_labels)}\" -RunnerVersion ${var.runner_version}"
-                }
+                protectedSettings       = local.cse_protected_settings
               }
             },
             {
@@ -168,6 +179,18 @@ resource "azapi_resource" "vmss_windows" {
   depends_on = [
     azapi_resource.uami_vmss_windows,
     azapi_resource.key_vault_vmss_windows,
-    azapi_resource.rbac_kv_secrets_user
+    azapi_resource.rbac_kv_secrets_user,
+    data.azapi_resource.byo_uami,
   ]
+
+  lifecycle {
+    precondition {
+      condition     = (var.bootstrap_script_url != null) != (var.bootstrap_script_inline_base64 != null)
+      error_message = "Exactly one of bootstrap_script_url or bootstrap_script_inline_base64 must be set."
+    }
+    precondition {
+      condition     = !var.enable_hotpatching || local.hotpatching_sku_ok
+      error_message = "enable_hotpatching = true requires windows_image_sku to include '2025-datacenter-azure-edition' (got '${var.windows_image_sku}')."
+    }
+  }
 }
