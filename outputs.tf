@@ -4,18 +4,23 @@ output "vmss_id" {
 }
 
 output "uami_principal_id" {
-  description = "Principal ID of the User-Assigned Managed Identity"
-  value       = azapi_resource.uami_vmss_windows.identity[0].principal_id
+  description = "Principal ID of the effective User-Assigned Managed Identity (module-created or BYO)."
+  value       = local.uami_principal_id
+}
+
+output "uami_resource_id" {
+  description = "Resource ID of the effective User-Assigned Managed Identity (module-created or BYO)."
+  value       = local.uami_id
 }
 
 output "key_vault_name" {
-  description = "Name of the Key Vault"
-  value       = azapi_resource.key_vault_vmss_windows.name
+  description = "Name of the effective Key Vault (module-created or BYO)."
+  value       = local.kv_name
 }
 
 output "key_vault_id" {
-  description = "Resource ID of the Key Vault"
-  value       = azapi_resource.key_vault_vmss_windows.id
+  description = "Resource ID of the effective Key Vault (module-created or BYO)."
+  value       = local.kv_id
 }
 
 output "vmss_name" {
