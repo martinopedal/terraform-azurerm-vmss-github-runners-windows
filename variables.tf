@@ -173,14 +173,162 @@ variable "automatic_instance_repair_grace_period" {
   default     = "PT30M"
 }
 
-variable "dsc_configuration_mode_frequency_mins" {
-  description = "DSC LCM consistency check frequency in minutes"
-  type        = number
-  default     = 15
-}
-
 variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)
   default     = {}
+}
+
+variable "orchestration_mode" {
+  description = "VMSS orchestration mode. 'Uniform' (default) is the classic mode and matches v1.1.0 behavior. 'Flexible' uses individual VMs underneath, supports mixing fault domains, and is required by some consumer scenarios (e.g. personal pool-w-pub). Immutable after VMSS creation - changing this value triggers destroy/recreate."
+  type        = string
+  default     = "Uniform"
+  validation {
+    condition     = contains(["Uniform", "Flexible"], var.orchestration_mode)
+    error_message = "orchestration_mode must be either 'Uniform' or 'Flexible'."
+  }
+}
+
+variable "auth_method" {
+  description = "Runner registration authentication method. 'app' uses a GitHub App private key stored in Key Vault to mint installation + registration tokens at boot. 'pat' uses a Personal Access Token stored in Key Vault as the registration credential. App auth is preferred for org-scoped pools; PAT is simpler for personal repo pools."
+  type        = string
+  default     = "app"
+  validation {
+    condition     = contains(["app", "pat"], var.auth_method)
+    error_message = "auth_method must be either 'app' or 'pat'."
+  }
+}
+
+variable "github_app_id" {
+  description = "GitHub App ID. Required when auth_method = 'app'. The App must be installed on github_owner and have Actions:read+write + Administration:read+write permissions on github_repo_list."
+  type        = string
+  default     = null
+}
+
+variable "github_app_installation_id" {
+  description = "GitHub App installation ID for github_owner. Required when auth_method = 'app'. Find via: GET /users/{owner}/installation or /orgs/{owner}/installation."
+  type        = string
+  default     = null
+}
+
+variable "app_private_key_secret_name" {
+  description = "Name of the Key Vault secret holding the GitHub App PEM private key. Ignored when auth_method = 'pat'."
+  type        = string
+  default     = "github-app-private-key"
+}
+
+variable "pat_secret_name" {
+  description = "Name of the Key Vault secret holding the GitHub PAT (classic, repo+admin:repo_hook scopes). Ignored when auth_method = 'app'."
+  type        = string
+  default     = "github-runner-pat"
+}
+
+variable "bootstrap_script_override_url" {
+  description = "Optional HTTPS URL to a consumer-owned bootstrap script that fully replaces the module-shipped register-windows-runner.ps1. When set, the module passes only -KeyVaultName, -GithubOwner, -GithubRepoList, -RunnerLabels, -RunnerVersion to the override script - auth-method-specific args are NOT passed (the override script owns its own param surface). Mutually exclusive with bootstrap_script_url and bootstrap_script_inline_base64."
+  type        = string
+  default     = null
+}
+
+variable "app_health_protocol" {
+  description = "Protocol used by the ApplicationHealthWindows extension to probe runner health. 'tcp' (default, matches v1.1.0) opens a TCP connect; 'http' / 'https' issue GET against app_health_request_path on app_health_port."
+  type        = string
+  default     = "tcp"
+  validation {
+    condition     = contains(["tcp", "http", "https"], var.app_health_protocol)
+    error_message = "app_health_protocol must be one of 'tcp', 'http', or 'https'."
+  }
+}
+
+variable "app_health_port" {
+  description = "Port probed by the ApplicationHealthWindows extension. Defaults to 0 (matches v1.1.0 - effectively disabled for TCP). Set to 80 with protocol='http' to probe a runner-side HTTP health endpoint."
+  type        = number
+  default     = 0
+}
+
+variable "app_health_request_path" {
+  description = "HTTP/HTTPS request path probed by the ApplicationHealthWindows extension. Only applies when app_health_protocol is 'http' or 'https'."
+  type        = string
+  default     = ""
+}
+
+# ---------------------------------------------------------------------------
+# DSC extension (Layer 4 of the 5-layer auto-heal model)
+# ---------------------------------------------------------------------------
+# The DSC configuration itself lives in alz-avm-tf-demo/dsc-configs and is
+# published as a release-asset zip (e.g. runner-supervisor/v0.1.0). The
+# consumer is responsible for fetching that zip and hosting it on a private
+# blob with a read-only SAS, then passing url + sas + script + function to
+# this module. See dsc-configs/docs/consuming.md for the canonical pattern.
+# ---------------------------------------------------------------------------
+
+variable "dsc_enabled" {
+  description = "Whether to provision the Microsoft.Powershell.DSC extension on the VMSS. When true, dsc_config_url and dsc_config_sas_token are required. Set to false for environments that rely only on Layers 1-3 + 5 (e.g. short-lived test pools)."
+  type        = bool
+  default     = true
+}
+
+variable "dsc_config_url" {
+  description = "HTTPS URL of the DSC configuration zip (produced by alz-avm-tf-demo/dsc-configs/scripts/Build-DscPackage.ps1 and hosted on a private blob). Required when dsc_enabled = true. Pin to a semver release tag (e.g. runner-supervisor/v0.1.0)."
+  type        = string
+  default     = null
+}
+
+variable "dsc_config_sas_token" {
+  description = "SAS token granting read access to dsc_config_url. Required when dsc_enabled = true and the blob is private (the standard case). Should be issued with permissions = 'r' only."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "dsc_configuration_script" {
+  description = "Script filename inside the DSC zip (relative to the zip root). Defaults to RunnerSupervisor.ps1 which matches the dsc-configs RunnerSupervisor config."
+  type        = string
+  default     = "RunnerSupervisor.ps1"
+}
+
+variable "dsc_configuration_function" {
+  description = "Name of the Configuration function inside the DSC script. Defaults to RunnerSupervisor which matches the dsc-configs RunnerSupervisor config."
+  type        = string
+  default     = "RunnerSupervisor"
+}
+
+variable "dsc_configuration_arguments" {
+  description = "Hashtable of arguments passed to the DSC configuration function. Forwarded as-is into the extension's configurationArguments protectedSetting. Default values match dsc-configs RunnerSupervisor signature."
+  type        = map(string)
+  default = {
+    WatchdogLogPath   = "C:\\runner-watchdog.log"
+    SupervisorLogPath = "C:\\runner-supervisor.log"
+  }
+}
+
+variable "dsc_configuration_mode_frequency_mins" {
+  description = "DSC LCM consistency check frequency in minutes. 15 matches the dsc-configs architecture doc and is the canonical default."
+  type        = number
+  default     = 15
+}
+
+# ---------------------------------------------------------------------------
+# Canonical tag taxonomy
+# ---------------------------------------------------------------------------
+# Every runner resource SHOULD carry these tags so the estate is uniformly
+# discoverable across M1 (Windows VMSS) and M2/M3/M4 (Linux ACA). The module
+# automatically injects Module + ModuleVersion + OS=windows; the consumer
+# supplies the rest via canonical_tags. Anything in var.tags merges on top.
+# ---------------------------------------------------------------------------
+
+variable "canonical_tags" {
+  description = "Canonical tag taxonomy applied to all runner resources. Set the keys you want; module injects Module = 'terraform-azurerm-vmss-github-runners-windows', ModuleVersion = (current release), OS = 'windows'. Anything in var.tags merges on top of the canonical set."
+  type = object({
+    owner       = optional(string)
+    workload    = optional(string)
+    pool        = optional(string)
+    trust       = optional(string) # private | public | org
+    cost_center = optional(string)
+  })
+  default  = {}
+  nullable = false
+  validation {
+    condition     = var.canonical_tags.trust == null || contains(["private", "public", "org"], var.canonical_tags.trust)
+    error_message = "canonical_tags.trust must be one of 'private', 'public', or 'org'."
+  }
 }

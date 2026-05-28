@@ -25,7 +25,8 @@ resource "azapi_resource" "vmss_windows" {
       tier     = "Standard"
     }
 
-    properties = {
+    properties = merge({
+      orchestrationMode        = var.orchestration_mode
       overprovision            = false
       singlePlacementGroup     = false
       platformFaultDomainCount = 1
@@ -116,7 +117,7 @@ resource "azapi_resource" "vmss_windows" {
 
         # Extensions are defined inline
         extensionProfile = {
-          extensions = [
+          extensions = concat([
             {
               name = "CustomScriptExtension"
               properties = {
@@ -126,36 +127,21 @@ resource "azapi_resource" "vmss_windows" {
                 autoUpgradeMinorVersion = true
                 protectedSettings       = local.cse_protected_settings
               }
-            },
-            {
-              name = "DSC"
-              properties = {
-                publisher               = "Microsoft.Powershell"
-                type                    = "DSC"
-                typeHandlerVersion      = "2.80"
-                autoUpgradeMinorVersion = true
-                protectedSettings = {
-                  configurationArguments = {
-                    ConfigurationModeFrequencyMins = var.dsc_configuration_mode_frequency_mins
-                  }
-                }
-              }
-            },
-            {
-              name = "ApplicationHealthWindows"
-              properties = {
-                publisher               = "Microsoft.ManagedServices"
-                type                    = "ApplicationHealthWindows"
-                typeHandlerVersion      = "1.0"
-                autoUpgradeMinorVersion = true
-                settings = {
-                  protocol    = "tcp"
-                  port        = 0
-                  requestPath = ""
-                }
-              }
             }
-          ]
+            ],
+            local.dsc_extension,
+            [
+              {
+                name = "ApplicationHealthWindows"
+                properties = {
+                  publisher               = "Microsoft.ManagedServices"
+                  type                    = "ApplicationHealthWindows"
+                  typeHandlerVersion      = "1.0"
+                  autoUpgradeMinorVersion = true
+                  settings                = local.app_health_settings
+                }
+              }
+          ])
         }
       }
 
@@ -164,17 +150,20 @@ resource "azapi_resource" "vmss_windows" {
         enabled     = true
         gracePeriod = var.automatic_instance_repair_grace_period
       }
-
-      # Upgrade policy
-      upgradePolicy = {
-        mode = "Manual"
+      },
+      # upgradePolicy is rejected by ARM for Flexible orchestration mode -
+      # include it only for Uniform.
+      local.is_flexible ? {} : {
+        upgradePolicy = {
+          mode = "Manual"
+        }
       }
-    }
+    )
 
     zones = var.vmss_zones
   }
 
-  tags = var.tags
+  tags = local.effective_tags
 
   depends_on = [
     azapi_resource.uami_vmss_windows,
@@ -185,12 +174,22 @@ resource "azapi_resource" "vmss_windows" {
 
   lifecycle {
     precondition {
-      condition     = (var.bootstrap_script_url != null) != (var.bootstrap_script_inline_base64 != null)
-      error_message = "Exactly one of bootstrap_script_url or bootstrap_script_inline_base64 must be set."
+      condition = length([
+        for v in [var.bootstrap_script_url, var.bootstrap_script_inline_base64, var.bootstrap_script_override_url] : v if v != null
+      ]) == 1
+      error_message = "Exactly one of bootstrap_script_url, bootstrap_script_inline_base64, or bootstrap_script_override_url must be set."
     }
     precondition {
       condition     = !var.enable_hotpatching || local.hotpatching_sku_ok
       error_message = "enable_hotpatching = true requires windows_image_sku to include '2025-datacenter-azure-edition' (got '${var.windows_image_sku}')."
+    }
+    precondition {
+      condition     = var.auth_method != "app" || (var.github_app_id != null && var.github_app_installation_id != null)
+      error_message = "auth_method = 'app' requires both github_app_id and github_app_installation_id to be set."
+    }
+    precondition {
+      condition     = !var.dsc_enabled || (var.dsc_config_url != null && var.dsc_config_sas_token != null)
+      error_message = "dsc_enabled = true requires both dsc_config_url and dsc_config_sas_token (see dsc-configs/docs/consuming.md for the canonical fetch-zip + blob + SAS pattern)."
     }
   }
 }
