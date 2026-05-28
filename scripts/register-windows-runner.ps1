@@ -3,45 +3,108 @@
     Bootstrap script for Windows GitHub Actions runner registration on VMSS.
 
 .DESCRIPTION
-    Registers a Windows VM as a GitHub Actions self-hosted runner using GitHub App authentication.
-    Fetches the GitHub App private key from Azure Key Vault via User-Assigned Managed Identity (UAMI).
-    Creates a watchdog scheduled task (60s interval) to monitor runner service health.
+    Two-stage bootstrap:
+      Stage 1 (this script under Windows PowerShell 5.1, run by CSE as SYSTEM):
+        - Logs early so we have observability if Stage 2 fails.
+        - Installs PowerShell 7 (LTS) via the official Microsoft MSI if absent.
+        - Re-executes itself under pwsh.exe and exits.
+
+      Stage 2 (this script under PowerShell 7, re-entered with -Stage2):
+        - Fetches the registration credential from Key Vault using the
+          UAMI attached to the VMSS via IMDS.
+        - When -AuthMethod app: builds an RS256 JWT from the App private
+          key, exchanges it for an installation token, then exchanges that
+          for a repo runner registration token.
+        - When -AuthMethod pat: uses the PAT directly to mint a repo
+          runner registration token.
+        - Downloads + unpacks the GitHub Actions runner.
+        - Registers as --ephemeral --unattended with --token (NEVER with
+          a long-lived PAT/App key on disk).
+        - Installs + starts the runner service.
+        - Creates a 60s watchdog scheduled task that restarts the service
+          if it stops (e.g. after an ephemeral job completes the VMSS
+          autoscaler is expected to replace the instance, but the
+          watchdog covers the gap).
 
 .PARAMETER KeyVaultName
-    Name of the Azure Key Vault containing the GitHub App private key.
+    Name of the Azure Key Vault holding the registration credential.
 
 .PARAMETER GithubOwner
-    GitHub owner (organization or user).
+    GitHub owner (organization or user) that owns the target repos.
 
 .PARAMETER GithubRepoList
-    Comma-separated list of repositories for runner registration.
+    Comma-separated list of repositories for runner registration. The
+    runner is registered against the FIRST repo in the list. (Multi-repo
+    targeting is achieved via labels + GitHub workflow routing, not by
+    registering one runner to many repos.)
 
 .PARAMETER RunnerLabels
-    Comma-separated list of runner labels.
+    Comma-separated list of runner labels appended to the default set.
 
 .PARAMETER RunnerVersion
     GitHub Actions runner version (e.g., '2.319.1').
 
+.PARAMETER AuthMethod
+    'app' (default) | 'pat'.
+
+.PARAMETER AppId
+    GitHub App ID (required when -AuthMethod app).
+
+.PARAMETER InstallationId
+    GitHub App installation ID for the org/user (required when
+    -AuthMethod app).
+
+.PARAMETER AppPrivateKeySecretName
+    Name of the KV secret holding the App PEM private key. Defaults to
+    'github-app-private-key'.
+
+.PARAMETER PatSecretName
+    Name of the KV secret holding the PAT (only when -AuthMethod pat).
+    Defaults to 'github-runner-pat'.
+
+.PARAMETER Stage2
+    Internal flag - set by Stage 1 when re-invoking under pwsh. Do not
+    set manually.
+
 .NOTES
-    This script is executed by CustomScriptExtension on VMSS instance creation.
-    DSC takes over service enforcement after initial registration completes.
+    Executed by VMSS CustomScriptExtension on instance creation.
+    Logs to C:\runner-bootstrap.log.
 #>
 
 param(
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [string]$KeyVaultName,
 
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [string]$GithubOwner,
 
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [string]$GithubRepoList,
 
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [string]$RunnerLabels,
 
-    [Parameter(Mandatory=$false)]
-    [string]$RunnerVersion = "2.319.1"
+    [Parameter(Mandatory = $false)]
+    [string]$RunnerVersion = "2.319.1",
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("app", "pat")]
+    [string]$AuthMethod = "app",
+
+    [Parameter(Mandatory = $false)]
+    [string]$AppId,
+
+    [Parameter(Mandatory = $false)]
+    [string]$InstallationId,
+
+    [Parameter(Mandatory = $false)]
+    [string]$AppPrivateKeySecretName = "github-app-private-key",
+
+    [Parameter(Mandatory = $false)]
+    [string]$PatSecretName = "github-runner-pat",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Stage2
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,115 +112,269 @@ $LogFile = "C:\runner-bootstrap.log"
 
 function Write-Log {
     param([string]$Message)
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logMessage = "[$timestamp] $Message"
-    Write-Host $logMessage
-    Add-Content -Path $LogFile -Value $logMessage -Force
+    $ts = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
+    $line = "[$ts] $Message"
+    Write-Host $line
+    Add-Content -Path $LogFile -Value $line -Force
+}
+
+# ---------------------------------------------------------------------------
+# Stage 1 - Windows PowerShell 5.1, install pwsh 7 and re-exec
+# ---------------------------------------------------------------------------
+if (-not $Stage2) {
+    try {
+        Write-Log "=== Stage 1: bootstrap start (PSVersion=$($PSVersionTable.PSVersion)) ==="
+
+        $pwshExe = "C:\Program Files\PowerShell\7\pwsh.exe"
+        if (-not (Test-Path $pwshExe)) {
+            Write-Log "PowerShell 7 not found - installing via Microsoft MSI..."
+            $msiUrl = "https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/PowerShell-7.4.6-win-x64.msi"
+            $msiPath = "$env:TEMP\PowerShell-7.4.6-win-x64.msi"
+
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $msiUrl -OutFile $msiPath -UseBasicParsing
+            Write-Log "Downloaded $msiUrl"
+
+            $p = Start-Process msiexec.exe -ArgumentList "/i `"$msiPath`" /quiet /norestart ADD_PATH=1" -Wait -PassThru
+            if ($p.ExitCode -ne 0) {
+                throw "PowerShell 7 MSI install failed with exit code $($p.ExitCode)"
+            }
+            Write-Log "PowerShell 7 installed"
+        }
+        else {
+            Write-Log "PowerShell 7 already present"
+        }
+
+        Write-Log "Re-invoking under PowerShell 7..."
+        $scriptPath = $PSCommandPath
+        $argsList = @(
+            "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$scriptPath`"",
+            "-Stage2",
+            "-KeyVaultName", $KeyVaultName,
+            "-GithubOwner", $GithubOwner,
+            "-GithubRepoList", "`"$GithubRepoList`"",
+            "-RunnerLabels", "`"$RunnerLabels`"",
+            "-RunnerVersion", $RunnerVersion,
+            "-AuthMethod", $AuthMethod,
+            "-AppPrivateKeySecretName", $AppPrivateKeySecretName,
+            "-PatSecretName", $PatSecretName
+        )
+        if ($AppId) { $argsList += @("-AppId", $AppId) }
+        if ($InstallationId) { $argsList += @("-InstallationId", $InstallationId) }
+
+        $p = Start-Process -FilePath $pwshExe -ArgumentList $argsList -Wait -PassThru -NoNewWindow
+        Write-Log "Stage 2 exit code: $($p.ExitCode)"
+        exit $p.ExitCode
+    }
+    catch {
+        Write-Log "Stage 1 failed: $_"
+        Write-Log $_.ScriptStackTrace
+        exit 1
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Stage 2 - PowerShell 7, full bootstrap
+# ---------------------------------------------------------------------------
+
+function Get-ImdsAccessToken {
+    param([string]$Resource = "https://vault.azure.net")
+    $url = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2021-02-01&resource=$Resource"
+    $resp = Invoke-RestMethod -Uri $url -Method Get -Headers @{Metadata = "true" } -UseBasicParsing
+    return $resp.access_token
+}
+
+function Get-KeyVaultSecret {
+    param(
+        [string]$VaultName,
+        [string]$SecretName,
+        [string]$AccessToken
+    )
+    $url = "https://$VaultName.vault.azure.net/secrets/$SecretName?api-version=7.4"
+    $resp = Invoke-RestMethod -Uri $url -Method Get -Headers @{Authorization = "Bearer $AccessToken" } -UseBasicParsing
+    return $resp.value
+}
+
+function ConvertTo-Base64Url {
+    param([byte[]]$Bytes)
+    $b64 = [Convert]::ToBase64String($Bytes)
+    return $b64.TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
+
+function New-GitHubAppJwt {
+    param(
+        [string]$AppIdValue,
+        [string]$PemPrivateKey
+    )
+
+    $header = @{ alg = "RS256"; typ = "JWT" } | ConvertTo-Json -Compress
+    $now = [int][double]::Parse((Get-Date -UFormat %s))
+    $payload = @{
+        iat = $now - 60
+        exp = $now + (9 * 60)
+        iss = $AppIdValue
+    } | ConvertTo-Json -Compress
+
+    $headerB64 = ConvertTo-Base64Url -Bytes ([Text.Encoding]::UTF8.GetBytes($header))
+    $payloadB64 = ConvertTo-Base64Url -Bytes ([Text.Encoding]::UTF8.GetBytes($payload))
+    $signingInput = "$headerB64.$payloadB64"
+
+    $rsa = [System.Security.Cryptography.RSA]::Create()
+    $rsa.ImportFromPem($PemPrivateKey)
+    try {
+        $signature = $rsa.SignData(
+            [Text.Encoding]::UTF8.GetBytes($signingInput),
+            [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+            [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
+        )
+    }
+    finally {
+        $rsa.Dispose()
+    }
+
+    $sigB64 = ConvertTo-Base64Url -Bytes $signature
+    return "$signingInput.$sigB64"
+}
+
+function Get-GitHubInstallationToken {
+    param(
+        [string]$Jwt,
+        [string]$InstallationIdValue
+    )
+    $url = "https://api.github.com/app/installations/$InstallationIdValue/access_tokens"
+    $headers = @{
+        Authorization = "Bearer $Jwt"
+        Accept        = "application/vnd.github+json"
+        "User-Agent"  = "terraform-azurerm-vmss-github-runners-windows"
+    }
+    $resp = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -UseBasicParsing
+    return $resp.token
+}
+
+function Get-RunnerRegistrationToken {
+    param(
+        [string]$BearerToken,
+        [string]$Owner,
+        [string]$Repo
+    )
+    $url = "https://api.github.com/repos/$Owner/$Repo/actions/runners/registration-token"
+    $headers = @{
+        Authorization = "Bearer $BearerToken"
+        Accept        = "application/vnd.github+json"
+        "User-Agent"  = "terraform-azurerm-vmss-github-runners-windows"
+    }
+    $resp = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -UseBasicParsing
+    return $resp.token
 }
 
 try {
-    Write-Log "=== Starting GitHub Runner Bootstrap ==="
-    Write-Log "KeyVault: $KeyVaultName"
-    Write-Log "Owner: $GithubOwner"
-    Write-Log "Repos: $GithubRepoList"
-    Write-Log "Labels: $RunnerLabels"
-    Write-Log "Runner Version: $RunnerVersion"
+    Write-Log "=== Stage 2: bootstrap start (PSVersion=$($PSVersionTable.PSVersion)) ==="
+    Write-Log "KeyVault=$KeyVaultName Owner=$GithubOwner Repos=$GithubRepoList Labels=$RunnerLabels RunnerVersion=$RunnerVersion AuthMethod=$AuthMethod"
 
-    # Step 1: Fetch GitHub App private key from Key Vault using UAMI via IMDS
-    Write-Log "Fetching GitHub App private key from Key Vault..."
-    $kvSecretUrl = "https://$KeyVaultName.vault.azure.net/secrets/github-app-private-key?api-version=7.4"
-    
-    # Get access token from IMDS (UAMI automatically assigned to VMSS)
-    $imdsUrl = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2021-02-01&resource=https://vault.azure.net"
-    $tokenResponse = Invoke-RestMethod -Uri $imdsUrl -Method Get -Headers @{Metadata="true"} -UseBasicParsing
-    $accessToken = $tokenResponse.access_token
-    Write-Log "IMDS token acquired"
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-    # Fetch private key from Key Vault
-    $secretResponse = Invoke-RestMethod -Uri $kvSecretUrl -Method Get -Headers @{Authorization="Bearer $accessToken"} -UseBasicParsing
-    $githubAppPrivateKey = $secretResponse.value
-    Write-Log "GitHub App private key fetched from Key Vault"
+    # 1. KV access token via IMDS
+    Write-Log "Acquiring Key Vault IMDS access token..."
+    $kvToken = Get-ImdsAccessToken -Resource "https://vault.azure.net"
 
-    # Step 2: Download and extract GitHub Actions runner
+    # 2. Mint registration token per auth method
+    $repos = $GithubRepoList -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    if ($repos.Count -lt 1) { throw "GithubRepoList is empty after parsing." }
+    $targetRepo = $repos[0]
+    Write-Log "Target repo for registration: $GithubOwner/$targetRepo"
+
+    if ($AuthMethod -eq "app") {
+        if (-not $AppId -or -not $InstallationId) {
+            throw "AuthMethod=app requires both -AppId and -InstallationId."
+        }
+        Write-Log "Fetching App private key from KV secret '$AppPrivateKeySecretName'..."
+        $pem = Get-KeyVaultSecret -VaultName $KeyVaultName -SecretName $AppPrivateKeySecretName -AccessToken $kvToken
+        Write-Log "Building RS256 JWT for App $AppId..."
+        $jwt = New-GitHubAppJwt -AppIdValue $AppId -PemPrivateKey $pem
+        Write-Log "Exchanging JWT for installation token (installation $InstallationId)..."
+        $instToken = Get-GitHubInstallationToken -Jwt $jwt -InstallationIdValue $InstallationId
+        Write-Log "Minting runner registration token..."
+        $regToken = Get-RunnerRegistrationToken -BearerToken $instToken -Owner $GithubOwner -Repo $targetRepo
+    }
+    else {
+        Write-Log "Fetching PAT from KV secret '$PatSecretName'..."
+        $pat = Get-KeyVaultSecret -VaultName $KeyVaultName -SecretName $PatSecretName -AccessToken $kvToken
+        Write-Log "Minting runner registration token via PAT..."
+        $regToken = Get-RunnerRegistrationToken -BearerToken $pat -Owner $GithubOwner -Repo $targetRepo
+    }
+
+    if (-not $regToken) { throw "Failed to mint runner registration token." }
+    Write-Log "Registration token acquired"
+
+    # 3. Download + extract runner
     $runnerDir = "C:\actions-runner"
     if (-Not (Test-Path $runnerDir)) {
         New-Item -ItemType Directory -Path $runnerDir -Force | Out-Null
     }
-
     $runnerZip = "$runnerDir\actions-runner-win-x64.zip"
     $runnerUrl = "https://github.com/actions/runner/releases/download/v$RunnerVersion/actions-runner-win-x64-$RunnerVersion.zip"
-    
-    Write-Log "Downloading runner from $runnerUrl..."
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Write-Log "Downloading $runnerUrl..."
     Invoke-WebRequest -Uri $runnerUrl -OutFile $runnerZip -UseBasicParsing
-    Write-Log "Runner downloaded"
-
-    Write-Log "Extracting runner..."
+    Write-Log "Extracting..."
     Expand-Archive -Path $runnerZip -DestinationPath $runnerDir -Force
-    Write-Log "Runner extracted to $runnerDir"
 
-    # Step 3: Register runner
-    $repos = $GithubRepoList -split ","
-    $repoUrl = "https://github.com/$GithubOwner/$($repos[0].Trim())"
-    
-    Write-Log "Registering runner for $repoUrl..."
-    
+    # 4. Register
+    $repoUrl = "https://github.com/$GithubOwner/$targetRepo"
+    Write-Log "Registering ephemeral runner against $repoUrl..."
     Push-Location $runnerDir
     try {
         $env:RUNNER_ALLOW_RUNASROOT = "1"
-        
-        .\config.cmd --unattended `
+        & .\config.cmd --unattended `
             --url $repoUrl `
+            --token $regToken `
             --labels $RunnerLabels `
             --ephemeral `
             --name "$env:COMPUTERNAME" `
             --work "_work"
-        
+        if ($LASTEXITCODE -ne 0) { throw "config.cmd exited with code $LASTEXITCODE" }
         Write-Log "Runner registered"
-        
-        Write-Log "Installing runner service..."
-        .\svc.ps1 install
-        Write-Log "Runner service installed"
-        
-        Write-Log "Starting runner service..."
-        .\svc.ps1 start
-        Write-Log "Runner service started"
-        
-    } finally {
-        Pop-Location
-    }
 
-    # Step 4: Create watchdog scheduled task
-    Write-Log "Creating watchdog scheduled task..."
-    
-    $watchdogScript = @"
-`$serviceName = 'actions.runner.*'
-`$services = Get-Service | Where-Object { `$_.Name -like `$serviceName }
-foreach (`$svc in `$services) {
-    if (`$svc.Status -ne 'Running') {
-        Write-Host "Service `$(`$svc.Name) is not running. Starting..."
-        Start-Service `$svc.Name
+        & .\svc.ps1 install
+        & .\svc.ps1 start
+        Write-Log "Runner service installed and started"
+        }
+        finally {
+            Pop-Location
+        }
+
+        # DSC (Layer 4) is owned by the DSC VM extension, NOT by this script.
+        # The extension pulls the canonical config from alz-avm-tf-demo/dsc-configs
+        # release-asset zip. See module main.vmss.tf dsc_* inputs.
+
+        # 5. Watchdog
+    Write-Log "Installing watchdog scheduled task..."
+    $watchdog = @'
+$svcs = Get-Service | Where-Object { $_.Name -like "actions.runner.*" }
+foreach ($s in $svcs) {
+    if ($s.Status -ne "Running") {
+        Write-Host "Restarting $($s.Name)"
+        Start-Service $s.Name
     }
 }
-"@
-    
-    $watchdogPath = "C:\runner-watchdog.ps1"
-    Set-Content -Path $watchdogPath -Value $watchdogScript -Force
-    Write-Log "Watchdog script created"
-    
-    $taskName = "GitHubRunnerWatchdog"
-    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File $watchdogPath"
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Seconds 60)
-    $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-    
-    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Force
-    Write-Log "Watchdog scheduled task registered"
+'@
+    $wdPath = "C:\runner-watchdog.ps1"
+    Set-Content -Path $wdPath -Value $watchdog -Force -Encoding UTF8
 
-    Write-Log "=== Bootstrap Complete ==="
+    $action = New-ScheduledTaskAction -Execute "powershell.exe" `
+        -Argument "-NoProfile -ExecutionPolicy Bypass -File $wdPath"
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
+        -RepetitionInterval (New-TimeSpan -Seconds 60)
+    $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" `
+        -LogonType ServiceAccount -RunLevel Highest
+    Register-ScheduledTask -TaskName "GitHubRunnerWatchdog" `
+        -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null
+    Write-Log "Watchdog installed"
+
+    Write-Log "=== Stage 2: bootstrap complete ==="
     exit 0
-
-} catch {
-    Write-Log "Bootstrap failed: $_"
+}
+catch {
+    Write-Log "Stage 2 failed: $_"
     Write-Log $_.ScriptStackTrace
     exit 1
 }
