@@ -18,7 +18,12 @@ locals {
   # Auth-method-specific args appended to the CSE command line for the
   # module-shipped script. Override scripts get the base arg set only -
   # consumers who supply bootstrap_script_override_url own their auth wiring.
-  auth_args_app = "-AuthMethod app -AppId ${coalesce(var.github_app_id, "UNSET")} -InstallationId ${coalesce(var.github_app_installation_id, "UNSET")} -AppPrivateKeySecretName ${var.app_private_key_secret_name}"
+  app_private_key_path          = "C:\\github-app-private-key.pem"
+  app_private_key_write_command = var.github_app_private_key_pem == null ? "" : "$pk=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64encode(coalesce(var.github_app_private_key_pem, ""))}')); Set-Content -Path ${local.app_private_key_path} -Value $pk -Encoding ascii; "
+  app_id_arg                    = var.github_app_id == null ? "UNSET" : tostring(var.github_app_id)
+  installation_id_arg           = var.github_app_installation_id == null ? "UNSET" : tostring(var.github_app_installation_id)
+
+  auth_args_app = var.github_app_private_key_pem == null ? "-AuthMethod app -AppId ${local.app_id_arg} -InstallationId ${local.installation_id_arg} -AppPrivateKeySecretName ${var.app_private_key_secret_name}" : "-AuthMethod app -AppId ${local.app_id_arg} -InstallationId ${local.installation_id_arg} -PrivateKeyPath ${local.app_private_key_path}"
   auth_args_pat = "-AuthMethod pat -PatSecretName ${var.pat_secret_name}"
   auth_args     = var.auth_method == "app" ? local.auth_args_app : local.auth_args_pat
 
@@ -34,9 +39,9 @@ locals {
   # - url      : download register-windows-runner.ps1 via fileUris (HTTPS), execute by name.
   # - inline   : decode base64 userData (delivered via VMSS userData), write to disk, execute.
   # - override : download consumer-supplied script via fileUris, execute.
-  cse_command_url      = "powershell.exe -ExecutionPolicy Unrestricted -File register-windows-runner.ps1 ${local.module_script_args}"
+  cse_command_url      = "powershell.exe -ExecutionPolicy Unrestricted -Command \"${local.app_private_key_write_command}& .\\register-windows-runner.ps1 ${local.module_script_args}\""
   cse_command_override = "powershell.exe -ExecutionPolicy Unrestricted -File ${reverse(split("/", coalesce(var.bootstrap_script_override_url, "x/x.ps1")))[0]} ${local.override_script_args}"
-  cse_command_inline   = "powershell.exe -ExecutionPolicy Unrestricted -Command \"$ud=[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Invoke-RestMethod -Headers @{Metadata='true'} -Uri 'http://169.254.169.254/metadata/instance/compute/userData?api-version=2021-01-01&format=text'))); Set-Content -Path C:\\register-windows-runner.ps1 -Value $ud -Encoding UTF8; & C:\\register-windows-runner.ps1 ${local.module_script_args}\""
+  cse_command_inline   = "powershell.exe -ExecutionPolicy Unrestricted -Command \"${local.app_private_key_write_command}$ud=[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Invoke-RestMethod -Headers @{Metadata='true'} -Uri 'http://169.254.169.254/metadata/instance/compute/userData?api-version=2021-01-01&format=text'))); Set-Content -Path C:\\register-windows-runner.ps1 -Value $ud -Encoding UTF8; & C:\\register-windows-runner.ps1 ${local.module_script_args}\""
 
   cse_protected_settings = local.use_inline_bootstrap ? {
     fileUris         = []
@@ -72,7 +77,7 @@ locals {
   # canonical_tags + freeform var.tags merged on top (last wins).
   module_canonical_tags = {
     Module        = "terraform-azurerm-vmss-github-runners-windows"
-    ModuleVersion = "1.2.0"
+    ModuleVersion = "1.3.0"
     OS            = "windows"
   }
   consumer_canonical_tags = merge(

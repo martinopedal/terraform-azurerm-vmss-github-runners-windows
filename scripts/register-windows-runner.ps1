@@ -12,11 +12,12 @@
       Stage 2 (this script under PowerShell 7, re-entered with -Stage2):
         - Fetches the registration credential from Key Vault using the
           UAMI attached to the VMSS via IMDS.
-        - When -AuthMethod app: builds an RS256 JWT from the App private
-          key, exchanges it for an installation token, then exchanges that
-          for a repo runner registration token.
-        - When -AuthMethod pat: uses the PAT directly to mint a repo
-          runner registration token.
+        - When AppId + InstallationId + PrivateKeyPath are provided: builds
+          an RS256 JWT from the App private key file, exchanges it for an
+          installation token, then exchanges that for a repo runner
+          registration token.
+        - When App args are absent: falls back to PAT registration. PAT can
+          be provided directly with -Pat or read from Key Vault.
         - Downloads + unpacks the GitHub Actions runner.
         - Registers as --ephemeral --unattended with --token (NEVER with
           a long-lived PAT/App key on disk).
@@ -54,12 +55,20 @@
     GitHub App installation ID for the org/user (required when
     -AuthMethod app).
 
+.PARAMETER PrivateKeyPath
+    Path to a local PEM private key file written by the CSE protectedSettings
+    command. Preferred App-auth path for v1.3.0.
+
 .PARAMETER AppPrivateKeySecretName
-    Name of the KV secret holding the App PEM private key. Defaults to
-    'github-app-private-key'.
+    Name of the KV secret holding the App PEM private key. Used as a
+    back-compat fallback when -PrivateKeyPath is not supplied.
+
+.PARAMETER Pat
+    Personal access token fallback. Prefer App auth; this direct value is
+    accepted for back-compat with older CSE param surfaces.
 
 .PARAMETER PatSecretName
-    Name of the KV secret holding the PAT (only when -AuthMethod pat).
+    Name of the KV secret holding the PAT (only when -Pat is absent).
     Defaults to 'github-runner-pat'.
 
 .PARAMETER Stage2
@@ -98,7 +107,13 @@ param(
     [string]$InstallationId,
 
     [Parameter(Mandatory = $false)]
+    [string]$PrivateKeyPath,
+
+    [Parameter(Mandatory = $false)]
     [string]$AppPrivateKeySecretName = "github-app-private-key",
+
+    [Parameter(Mandatory = $false)]
+    [string]$Pat,
 
     [Parameter(Mandatory = $false)]
     [string]$PatSecretName = "github-runner-pat",
@@ -161,6 +176,8 @@ if (-not $Stage2) {
         )
         if ($AppId) { $argsList += @("-AppId", $AppId) }
         if ($InstallationId) { $argsList += @("-InstallationId", $InstallationId) }
+        if ($PrivateKeyPath) { $argsList += @("-PrivateKeyPath", $PrivateKeyPath) }
+        if ($Pat) { $argsList += @("-Pat", $Pat) }
 
         $p = Start-Process -FilePath $pwshExe -ArgumentList $argsList -Wait -PassThru -NoNewWindow
         Write-Log "Stage 2 exit code: $($p.ExitCode)"
@@ -277,18 +294,23 @@ try {
     Write-Log "Acquiring Key Vault IMDS access token..."
     $kvToken = Get-ImdsAccessToken -Resource "https://vault.azure.net"
 
-    # 2. Mint registration token per auth method
+    # 2. Mint registration token per auth method. App auth wins only when all
+    # App arguments are present; otherwise use the PAT path for back-compat.
     $repos = $GithubRepoList -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ }
     if ($repos.Count -lt 1) { throw "GithubRepoList is empty after parsing." }
     $targetRepo = $repos[0]
     Write-Log "Target repo for registration: $GithubOwner/$targetRepo"
 
-    if ($AuthMethod -eq "app") {
-        if (-not $AppId -or -not $InstallationId) {
-            throw "AuthMethod=app requires both -AppId and -InstallationId."
+    $useAppAuth = $AppId -and $InstallationId -and ($PrivateKeyPath -or $AppPrivateKeySecretName)
+    if ($useAppAuth) {
+        if ($PrivateKeyPath) {
+            Write-Log "Reading App private key from protectedSettings file path..."
+            $pem = Get-Content -Path $PrivateKeyPath -Raw
         }
-        Write-Log "Fetching App private key from KV secret '$AppPrivateKeySecretName'..."
-        $pem = Get-KeyVaultSecret -VaultName $KeyVaultName -SecretName $AppPrivateKeySecretName -AccessToken $kvToken
+        else {
+            Write-Log "Fetching App private key from KV secret '$AppPrivateKeySecretName'..."
+            $pem = Get-KeyVaultSecret -VaultName $KeyVaultName -SecretName $AppPrivateKeySecretName -AccessToken $kvToken
+        }
         Write-Log "Building RS256 JWT for App $AppId..."
         $jwt = New-GitHubAppJwt -AppIdValue $AppId -PemPrivateKey $pem
         Write-Log "Exchanging JWT for installation token (installation $InstallationId)..."
@@ -297,10 +319,16 @@ try {
         $regToken = Get-RunnerRegistrationToken -BearerToken $instToken -Owner $GithubOwner -Repo $targetRepo
     }
     else {
-        Write-Log "Fetching PAT from KV secret '$PatSecretName'..."
-        $pat = Get-KeyVaultSecret -VaultName $KeyVaultName -SecretName $PatSecretName -AccessToken $kvToken
+        if ($Pat) {
+            Write-Log "Using PAT supplied by protected CSE settings..."
+            $patValue = $Pat
+        }
+        else {
+            Write-Log "Fetching PAT from KV secret '$PatSecretName'..."
+            $patValue = Get-KeyVaultSecret -VaultName $KeyVaultName -SecretName $PatSecretName -AccessToken $kvToken
+        }
         Write-Log "Minting runner registration token via PAT..."
-        $regToken = Get-RunnerRegistrationToken -BearerToken $pat -Owner $GithubOwner -Repo $targetRepo
+        $regToken = Get-RunnerRegistrationToken -BearerToken $patValue -Owner $GithubOwner -Repo $targetRepo
     }
 
     if (-not $regToken) { throw "Failed to mint runner registration token." }
