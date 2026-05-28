@@ -73,10 +73,35 @@ variable "github_repo_list" {
   type        = list(string)
 }
 
+variable "orchestration_mode" {
+  description = "VMSS orchestration mode. Use Flexible only for existing Flexible pools because this setting is immutable."
+  type        = string
+  default     = "Uniform"
+}
+
+variable "github_app_id" {
+  description = "GitHub App ID used for runner registration."
+  type        = number
+  default     = null
+}
+
+variable "github_app_installation_id" {
+  description = "GitHub App installation ID used for runner registration."
+  type        = number
+  default     = null
+}
+
+variable "github_app_private_key_pem" {
+  description = "GitHub App PEM private key. Passed through VMSS CSE protectedSettings."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
 variable "bootstrap_script_url" {
   description = "HTTPS URL for scripts/register-windows-runner.ps1. Pin this to a release tag."
   type        = string
-  default     = "https://raw.githubusercontent.com/martinopedal/terraform-azurerm-vmss-github-runners-windows/v1.0.0/scripts/register-windows-runner.ps1"
+  default     = "https://raw.githubusercontent.com/martinopedal/terraform-azurerm-vmss-github-runners-windows/v1.3.0/scripts/register-windows-runner.ps1"
 }
 
 variable "runner_labels" {
@@ -110,7 +135,7 @@ variable "automatic_instance_repair_grace_period" {
 }
 
 variable "enable_telemetry" {
-  description = "AVM telemetry flag — leave true unless your org policy disallows it."
+  description = "AVM telemetry flag - leave true unless your org policy disallows it."
   type        = bool
   default     = true
 }

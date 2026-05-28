@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0
+
+- **Protected GitHub App private key path**: new sensitive `github_app_private_key_pem` input. When set with `github_app_id` and `github_app_installation_id`, the CSE protectedSettings command writes the PEM to a transient local file and calls `register-windows-runner.ps1` with `-PrivateKeyPath`.
+- **CSE App/PAT fallback**: `register-windows-runner.ps1` now chooses App auth only when App ID, installation ID, and a private-key source are present. If App args are absent, it falls back to PAT registration (`-Pat` direct value or Key Vault `pat_secret_name`) for back-compat.
+- **v1.2.0 behavior retained**: `orchestration_mode` remains `"Uniform"` by default with `"Flexible"` opt-in, and the Key Vault App private-key path still works when `github_app_private_key_pem` is null.
+
 ## 1.2.0
 
 - **DSC extension wired end-to-end** (Layer 4 of the 5-layer auto-heal model). The v1.1.0 extension only set `ConfigurationModeFrequencyMins` with no `configuration` block - it was effectively a no-op. The new extension consumes a release-asset zip published by [alz-avm-tf-demo/dsc-configs](https://github.com/alz-avm-tf-demo/dsc-configs) (canonical home for runner DSC). New inputs: `dsc_enabled` (bool, default `true`), `dsc_config_url`, `dsc_config_sas_token` (sensitive), `dsc_configuration_script` (default `"RunnerSupervisor.ps1"`), `dsc_configuration_function` (default `"RunnerSupervisor"`), `dsc_configuration_arguments` (map). Consumers fetch the zip via `data.http`, push to a private blob, and pass URL + SAS - see [dsc-configs/docs/consuming.md](https://github.com/alz-avm-tf-demo/dsc-configs/blob/main/docs/consuming.md). The module-internal `runner-dsc-config.ps1` stub has been removed (was duplicating dsc-configs without the watchdog + supervisor enforcement).

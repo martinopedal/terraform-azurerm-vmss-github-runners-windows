@@ -201,14 +201,21 @@ variable "auth_method" {
 
 variable "github_app_id" {
   description = "GitHub App ID. Required when auth_method = 'app'. The App must be installed on github_owner and have Actions:read+write + Administration:read+write permissions on github_repo_list."
-  type        = string
+  type        = number
   default     = null
 }
 
 variable "github_app_installation_id" {
   description = "GitHub App installation ID for github_owner. Required when auth_method = 'app'. Find via: GET /users/{owner}/installation or /orgs/{owner}/installation."
+  type        = number
+  default     = null
+}
+
+variable "github_app_private_key_pem" {
+  description = "Optional GitHub App PEM private key. When set with github_app_id and github_app_installation_id, the module writes it from CSE protectedSettings to a transient file and passes -PrivateKeyPath to register-windows-runner.ps1. If null, App auth falls back to app_private_key_secret_name in Key Vault."
   type        = string
   default     = null
+  sensitive   = true
 }
 
 variable "app_private_key_secret_name" {

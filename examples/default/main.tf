@@ -7,7 +7,7 @@ data "azurerm_subnet" "runner_subnet" {
 module "windows_runners" {
   source = "../../"
   # In real consumers, pin to a tag instead of the relative path:
-  # source = "git::https://github.com/martinopedal/terraform-azurerm-vmss-github-runners-windows.git?ref=v1.0.0"
+  # source = "git::https://github.com/martinopedal/terraform-azurerm-vmss-github-runners-windows.git?ref=v1.3.0"
 
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -18,11 +18,15 @@ module "windows_runners" {
   vmss_capacity = var.vmss_capacity
   vmss_zones    = var.vmss_zones
 
-  key_vault_name       = var.key_vault_name
-  github_owner         = var.github_owner
-  github_repo_list     = var.github_repo_list
-  bootstrap_script_url = var.bootstrap_script_url
-  runner_labels        = var.runner_labels
+  key_vault_name             = var.key_vault_name
+  github_owner               = var.github_owner
+  github_repo_list           = var.github_repo_list
+  github_app_id              = var.github_app_id
+  github_app_installation_id = var.github_app_installation_id
+  github_app_private_key_pem = var.github_app_private_key_pem
+  bootstrap_script_url       = var.bootstrap_script_url
+  runner_labels              = var.runner_labels
+  orchestration_mode         = var.orchestration_mode
 
   priority_mix_base_regular_count            = var.priority_mix_base_regular_count
   priority_mix_regular_percentage_above_base = var.priority_mix_regular_percentage_above_base

@@ -4,7 +4,7 @@ subscription_id  = "00000000-0000-0000-0000-000000000000"
 key_vault_name   = "kv-pool-w-personal-xyz"
 github_repo_list = ["personal-runners-infra", "azure-analyzer"]
 
-# Optional overrides — defaults match the personal-runners-infra layout.
+# Optional overrides - defaults match the personal-runners-infra layout.
 # location              = "swedencentral"
 # resource_group_name   = "rg-pool-w-personal-swedencentral-001"
 # vmss_sku              = "Standard_D8ds_v6"
