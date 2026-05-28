@@ -13,7 +13,9 @@ jobs:
   decide-runner:
     uses: martinopedal/github-runners-alz-corp-cookbook/.github/workflows/decide-runner.yml@v1
     with:
-      self-hosted-labels: '["self-hosted", "personal", "pub", "linux"]'
+      # Personal pub-linux pool is unstable during pool refactor (2026-05-28).
+      # Pure code-quality checks (fmt/init/validate/tflint) don't need self-hosted.
+      self-hosted-labels: '["ubuntu-latest"]'
 
   terraform:
     needs: decide-runner
