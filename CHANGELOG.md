@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+- Documented the ALZ hardening audit for Key Vault secret expiry, DSC storage blob RBAC, and Windows DCR schema risks.
+- Confirmed the module does not create Key Vault secrets, storage accounts/blobs, or Data Collection Rules; those resources remain consumer-owned if needed.
+- Confirmed no upstream parent exists for this originally-authored repository, so no upstream PR is required.
+
 ## 1.0.0
 
 - Prepared the Windows VMSS runner module for first stable registry release.
