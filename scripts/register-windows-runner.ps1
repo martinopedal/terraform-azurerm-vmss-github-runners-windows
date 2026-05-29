@@ -196,8 +196,21 @@ if (-not $Stage2) {
 
 function Get-ImdsAccessToken {
     param([string]$Resource = "https://vault.azure.net")
-    $url = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2021-02-01&resource=$Resource"
-    $resp = Invoke-RestMethod -Uri $url -Method Get -Headers @{Metadata = "true" } -UseBasicParsing
+    $base = "http://169.254.169.254/metadata/identity/oauth2/token"
+    $body = @{
+        'api-version' = '2018-02-01'
+        'resource'    = $Resource
+    }
+    Write-Log "IMDS request: $base resource=$Resource"
+    try {
+        $resp = Invoke-RestMethod -Uri $base -Method Get -Body $body -Headers @{Metadata = "true" } -UseBasicParsing -TimeoutSec 30
+    } catch {
+        $bodyText = if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $_.ErrorDetails.Message } else { $_.Exception.Message }
+        throw "IMDS token acquisition failed for resource '$Resource': $bodyText"
+    }
+    if (-not $resp.access_token) {
+        throw "IMDS response had no access_token. Raw: $($resp | ConvertTo-Json -Compress -Depth 5)"
+    }
     return $resp.access_token
 }
 
@@ -207,8 +220,19 @@ function Get-KeyVaultSecret {
         [string]$SecretName,
         [string]$AccessToken
     )
-    $url = "https://$VaultName.vault.azure.net/secrets/$SecretName?api-version=7.4"
-    $resp = Invoke-RestMethod -Uri $url -Method Get -Headers @{Authorization = "Bearer $AccessToken" } -UseBasicParsing
+    if (-not $VaultName) { throw "Get-KeyVaultSecret: VaultName empty" }
+    if (-not $AccessToken) { throw "Get-KeyVaultSecret: AccessToken empty" }
+    $base = "https://$VaultName.vault.azure.net/secrets/$SecretName"
+    Write-Log "KV request: $base?api-version=7.4 (token length=$($AccessToken.Length))"
+    try {
+        $resp = Invoke-RestMethod -Uri $base -Method Get -Body @{ 'api-version' = '7.4' } -Headers @{Authorization = "Bearer $AccessToken" } -UseBasicParsing -TimeoutSec 30
+    } catch {
+        $bodyText = if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $_.ErrorDetails.Message } else { $_.Exception.Message }
+        throw "KV GET '$base' failed: $bodyText"
+    }
+    if (-not $resp.value) {
+        throw "KV response had no value for secret '$SecretName'. Raw: $($resp | ConvertTo-Json -Compress -Depth 3)"
+    }
     return $resp.value
 }
 
