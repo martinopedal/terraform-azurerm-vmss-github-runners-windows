@@ -7,7 +7,7 @@ locals {
   byo_kv   = var.key_vault_resource_id != null
 
   uami_id           = local.byo_uami ? var.user_assigned_managed_identity_resource_id : azapi_resource.uami_vmss_windows[0].id
-  uami_principal_id = local.byo_uami ? data.azapi_resource.byo_uami[0].output.properties.principalId : azapi_resource.uami_vmss_windows[0].identity[0].principal_id
+  uami_principal_id = local.byo_uami ? data.azapi_resource.byo_uami[0].output.properties.principalId : azapi_resource.uami_vmss_windows[0].output.properties.principalId
 
   kv_id   = local.byo_kv ? var.key_vault_resource_id : azapi_resource.key_vault_vmss_windows[0].id
   kv_name = local.byo_kv ? element(split("/", var.key_vault_resource_id), length(split("/", var.key_vault_resource_id)) - 1) : azapi_resource.key_vault_vmss_windows[0].name
@@ -77,7 +77,7 @@ locals {
   # canonical_tags + freeform var.tags merged on top (last wins).
   module_canonical_tags = {
     Module        = "terraform-azurerm-vmss-github-runners-windows"
-    ModuleVersion = "1.3.0"
+    ModuleVersion = "1.3.1"
     OS            = "windows"
   }
   consumer_canonical_tags = merge(
