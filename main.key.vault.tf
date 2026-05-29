@@ -35,6 +35,13 @@ resource "azapi_resource" "key_vault_vmss_windows" {
       condition     = var.key_vault_name != null
       error_message = "key_vault_name is required when key_vault_resource_id is null (module is creating the Key Vault)."
     }
+    # ipRules are managed out-of-band by the consumer (e.g. bridge runner IP grants)
+    # because the deploy SP often runs from a public IP that must be allowlisted after KV create.
+    ignore_changes = [
+      body.properties.networkAcls.ipRules,
+      body.properties.networkAcls.virtualNetworkRules,
+      body.properties.publicNetworkAccess,
+    ]
   }
 }
 

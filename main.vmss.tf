@@ -60,7 +60,6 @@ resource "azapi_resource" "vmss_windows" {
               patchSettings = {
                 patchMode         = "AutomaticByPlatform"
                 enableHotpatching = true
-                assessmentMode    = "AutomaticByPlatform"
                 automaticByPlatformSettings = {
                   rebootSetting = "IfRequired"
                 }
