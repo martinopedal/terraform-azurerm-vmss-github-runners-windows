@@ -386,9 +386,16 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "config.cmd exited with code $LASTEXITCODE" }
         Write-Log "Runner registered"
 
-        & .\svc.ps1 install
-        & .\svc.ps1 start
-        Write-Log "Runner service installed and started"
+        # Ephemeral runner: invoke run.cmd via scheduled task so VMSS auto-instance-repair
+        # re-images the VM after the runner exits (one job per VM lifetime).
+        $taskName = "GHActionsRunner"
+        $action = New-ScheduledTaskAction -Execute "$runnerDir\run.cmd"
+        $trigger = New-ScheduledTaskTrigger -AtStartup
+        $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+        Start-ScheduledTask -TaskName $taskName
+        Write-Log "Runner scheduled task '$taskName' installed and started"
         }
         finally {
             Pop-Location
