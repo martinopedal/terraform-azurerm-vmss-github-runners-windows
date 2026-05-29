@@ -48,6 +48,17 @@ variable "vmss_capacity" {
   default     = 1
 }
 
+variable "license_type" {
+  description = "Azure Hybrid Benefit license type for Windows instances. Set to \"Windows_Server\" to apply AHUB (saves the Windows Server license cost on regular and Spot instances). Leave null for pay-as-you-go licensing."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.license_type == null || contains(["Windows_Server", "Windows_Client"], coalesce(var.license_type, "null"))
+    error_message = "license_type must be null, \"Windows_Server\", or \"Windows_Client\"."
+  }
+}
+
 variable "vmss_zones" {
   description = "Availability zones for the VMSS (for Spot capacity resilience)"
   type        = list(string)

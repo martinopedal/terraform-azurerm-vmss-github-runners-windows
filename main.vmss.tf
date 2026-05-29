@@ -46,6 +46,11 @@ resource "azapi_resource" "vmss_windows" {
           maxPrice = var.max_bid_price
         }
 
+        # Azure Hybrid Benefit: when license_type is set (e.g. "Windows_Server"),
+        # AHUB is applied. azapi (v2) omits this key when var.license_type is null,
+        # preserving pay-as-you-go behaviour by default.
+        licenseType = var.license_type
+
         osProfile = {
           computerNamePrefix = substr(var.vmss_name, 0, 9)
           adminUsername      = var.admin_username
