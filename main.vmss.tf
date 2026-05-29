@@ -26,8 +26,9 @@ resource "azapi_resource" "vmss_windows" {
     }
 
     properties = merge({
-      orchestrationMode        = var.orchestration_mode
-      overprovision            = false
+      orchestrationMode = var.orchestration_mode
+      # overprovision is only valid for Uniform orchestration; Flexible rejects it.
+      overprovision            = var.orchestration_mode == "Uniform" ? false : null
       singlePlacementGroup     = false
       platformFaultDomainCount = 1
 
