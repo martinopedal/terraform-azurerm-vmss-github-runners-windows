@@ -314,6 +314,16 @@ try {
 
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+    # 0. Install CI/CD toolchain (PowerShell modules, az, terraform, etc.)
+    Write-Log "Installing runner tools..."
+    $toolScriptPath = Join-Path $PSScriptRoot "Install-RunnerTools.ps1"
+    if (Test-Path $toolScriptPath) {
+        & $toolScriptPath -LogPath "C:\runner-tools-install.log"
+        Write-Log "Tool installation completed"
+    } else {
+        Write-Log "WARNING: Install-RunnerTools.ps1 not found at $toolScriptPath - tools not installed" -Level "WARN"
+    }
+
     # 1. KV access token via IMDS
     Write-Log "Acquiring Key Vault IMDS access token..."
     $kvToken = Get-ImdsAccessToken -Resource "https://vault.azure.net"
