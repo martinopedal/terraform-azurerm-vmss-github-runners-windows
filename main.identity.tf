@@ -11,6 +11,8 @@ resource "azapi_resource" "uami_vmss_windows" {
 
   body = {}
 
+  response_export_values = ["properties.principalId", "properties.clientId"]
+
   tags = var.tags
 }
 
