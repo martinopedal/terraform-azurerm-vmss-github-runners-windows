@@ -27,7 +27,7 @@ locals {
   auth_args_pat = "-AuthMethod pat -PatSecretName ${var.pat_secret_name}"
   auth_args     = var.auth_method == "app" ? local.auth_args_app : local.auth_args_pat
 
-  base_args = "-KeyVaultName ${local.kv_name} -GithubOwner ${var.github_owner} -GithubRepoList \"${join(",", var.github_repo_list)}\" -RunnerLabels \"${join(",", var.runner_labels)}\" -RunnerVersion ${var.runner_version}"
+  base_args = "-KeyVaultName ${local.kv_name} -GithubOwner ${var.github_owner} -GithubRepoList '${join(",", var.github_repo_list)}' -RunnerLabels '${join(",", var.runner_labels)}' -RunnerVersion ${var.runner_version}"
 
   # Module-shipped script gets full base + auth args.
   module_script_args = "${local.base_args} ${local.auth_args}"
