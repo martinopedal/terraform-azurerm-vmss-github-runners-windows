@@ -61,8 +61,14 @@ variable "key_vault_name" {
 }
 
 variable "key_vault_resource_id" {
-  description = "Optional resource ID of an existing Key Vault to use instead of creating one. When set, the module skips KV creation and only assigns the UAMI the Key Vault Secrets User role on this vault."
+  description = "Optional resource ID of an existing Key Vault to use instead of creating one. When set, the module skips KV creation and only assigns the UAMI the Key Vault Secrets User role on this vault. If this references a resource created in the same apply (unknown at plan time), you MUST also set create_key_vault = false."
   type        = string
+  default     = null
+}
+
+variable "create_key_vault" {
+  description = "Whether the module should create the Key Vault. Defaults to null which auto-detects from key_vault_resource_id (null => create). Set explicitly to false when key_vault_resource_id is an unknown-at-plan-time reference (e.g. azurerm_key_vault.x.id created in the same root)."
+  type        = bool
   default     = null
 }
 
@@ -73,8 +79,14 @@ variable "key_vault_purge_protection_enabled" {
 }
 
 variable "user_assigned_managed_identity_resource_id" {
-  description = "Optional resource ID of an existing User-Assigned Managed Identity. When set, the module skips UAMI creation and attaches this identity to the VMSS instead, looking up its principalId for RBAC."
+  description = "Optional resource ID of an existing User-Assigned Managed Identity. When set, the module skips UAMI creation and attaches this identity to the VMSS instead, looking up its principalId for RBAC. If this references a resource created in the same apply (unknown at plan time), you MUST also set create_user_assigned_managed_identity = false."
   type        = string
+  default     = null
+}
+
+variable "create_user_assigned_managed_identity" {
+  description = "Whether the module should create the UAMI. Defaults to null which auto-detects from user_assigned_managed_identity_resource_id (null => create). Set explicitly to false when the supplied resource id is unknown at plan time."
+  type        = bool
   default     = null
 }
 
