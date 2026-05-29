@@ -92,6 +92,7 @@ resource "azapi_resource" "vmss_windows" {
         }
 
         networkProfile = {
+          networkApiVersion = "2022-11-01"
           networkInterfaceConfigurations = [
             {
               name = "${var.vmss_name}-nic"
