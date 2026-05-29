@@ -351,3 +351,9 @@ variable "canonical_tags" {
     error_message = "canonical_tags.trust must be one of 'private', 'public', or 'org'."
   }
 }
+
+variable "key_vault_allowed_ip_ranges" {
+  type        = list(string)
+  default     = []
+  description = "Additional public IPv4 CIDRs to allow on the module-created Key Vault firewall (e.g. bridge runner IP). Ignored when key_vault_resource_id is provided (BYO KV)."
+}

@@ -24,6 +24,7 @@ resource "azapi_resource" "key_vault_vmss_windows" {
       networkAcls = {
         bypass        = "AzureServices"
         defaultAction = "Deny"
+        ipRules       = [for ip in var.key_vault_allowed_ip_ranges : { value = ip }]
       }
     }
   }
