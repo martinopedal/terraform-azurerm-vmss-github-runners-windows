@@ -9,7 +9,7 @@ resource "azapi_resource" "vmss_windows" {
   type      = "Microsoft.Compute/virtualMachineScaleSets@2024-07-01"
   name      = var.vmss_name
   location  = var.location
-  parent_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}"
+  parent_id = "/subscriptions/${local.subscription_id}/resourceGroups/${var.resource_group_name}"
 
   identity {
     type = "UserAssigned"

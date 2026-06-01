@@ -5,7 +5,7 @@ resource "azapi_resource" "telemetry" {
   type      = "Microsoft.Resources/deployments@2021-04-01"
   name      = "46d3xgtm.ptn-cicd-vmss-windows"
   location  = var.location
-  parent_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}"
+  parent_id = "/subscriptions/${local.subscription_id}/resourceGroups/${var.resource_group_name}"
 
   body = {
     properties = {

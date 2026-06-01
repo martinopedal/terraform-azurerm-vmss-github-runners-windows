@@ -7,7 +7,7 @@ resource "azapi_resource" "key_vault_vmss_windows" {
   type      = "Microsoft.KeyVault/vaults@2023-07-01"
   name      = var.key_vault_name
   location  = var.location
-  parent_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}"
+  parent_id = "/subscriptions/${local.subscription_id}/resourceGroups/${var.resource_group_name}"
 
   body = {
     properties = {
@@ -56,7 +56,7 @@ resource "azapi_resource" "rbac_kv_secrets_user" {
 
   body = {
     properties = {
-      roleDefinitionId = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/4633458b-17de-408a-b874-0445c86b69e6"
+      roleDefinitionId = "/subscriptions/${local.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/4633458b-17de-408a-b874-0445c86b69e6"
       principalId      = local.uami_principal_id
       principalType    = "ServicePrincipal"
     }
