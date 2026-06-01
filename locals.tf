@@ -3,6 +3,11 @@
 # null, the module-created resources are used. Otherwise the externally-supplied
 # IDs flow through into the VMSS identity block and RBAC scope.
 locals {
+  # Subscription used for parent_id composition. Prefer the explicit input so
+  # parent_id is known at plan time (see variable "subscription_id"); fall back
+  # to the provider client_config for backward compatibility.
+  subscription_id = var.subscription_id != "" ? var.subscription_id : data.azurerm_client_config.current.subscription_id
+
   byo_uami = var.create_user_assigned_managed_identity == null ? var.user_assigned_managed_identity_resource_id != null : !var.create_user_assigned_managed_identity
   byo_kv   = var.create_key_vault == null ? var.key_vault_resource_id != null : !var.create_key_vault
 

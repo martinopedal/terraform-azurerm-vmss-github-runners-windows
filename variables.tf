@@ -14,6 +14,12 @@ variable "resource_group_name" {
   type        = string
 }
 
+variable "subscription_id" {
+  description = "Subscription ID used to compose resource parent_id values. When set to a non-empty value it is used directly so parent_id is known at plan time. This avoids a spurious azapi ForceNew (VMSS/UAMI replacement) when the azurerm provider defers data.azurerm_client_config to apply — e.g. under OIDC auth on CI runners, where object_id resolution makes the whole data source known-after-apply. Defaults to the provider's client_config subscription for backward compatibility."
+  type        = string
+  default     = ""
+}
+
 variable "subnet_id" {
   description = "ID of the subnet where VMSS instances will be deployed"
   type        = string
