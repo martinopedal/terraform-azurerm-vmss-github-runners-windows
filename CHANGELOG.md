@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.0
+
+- **Azure Hybrid Benefit (AHUB) support**: new `license_type` input (default `null`). Set to `"Windows_Server"` to enable AHUB and save ~40-50% on Windows licensing costs. When set, the module adds `licenseType` to the VMSS `virtualMachineProfile` (applies to both Regular and Spot instances). Valid values: `null`, `"Windows_Server"`, `"Windows_Client"`. This is a non-breaking change - existing consumers that don't set the input continue with full Windows licensing (same as v1.5.x behavior).
+
 ## 1.3.0
 
 - **Protected GitHub App private key path**: new sensitive `github_app_private_key_pem` input. When set with `github_app_id` and `github_app_installation_id`, the CSE protectedSettings command writes the PEM to a transient local file and calls `register-windows-runner.ps1` with `-PrivateKeyPath`.

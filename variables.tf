@@ -54,6 +54,16 @@ variable "vmss_zones" {
   default     = ["1", "2", "3"]
 }
 
+variable "license_type" {
+  description = "License type for Windows VMs. Set to 'Windows_Server' to enable Azure Hybrid Benefit (AHUB) and save ~40-50%% on licensing costs. Set to null to pay full Windows licensing. Only valid for Windows images."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.license_type == null || var.license_type == "Windows_Server" || var.license_type == "Windows_Client"
+    error_message = "license_type must be null, 'Windows_Server', or 'Windows_Client'."
+  }
+}
+
 variable "key_vault_name" {
   description = "Name of the Key Vault to create for GitHub App private key storage. Required when key_vault_resource_id is null. Ignored when BYO Key Vault is supplied."
   type        = string

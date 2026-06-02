@@ -39,112 +39,116 @@ resource "azapi_resource" "vmss_windows" {
       }
 
       # Spot configuration
-      virtualMachineProfile = {
-        priority       = "Spot"
-        evictionPolicy = var.eviction_policy
-        billingProfile = {
-          maxPrice = var.max_bid_price
-        }
-
-        osProfile = {
-          computerNamePrefix = substr(var.vmss_name, 0, 9)
-          adminUsername      = var.admin_username
-          adminPassword      = coalesce(var.admin_password, random_password.admin_password.result)
-          windowsConfiguration = merge(
-            {
-              provisionVMAgent       = true
-              enableAutomaticUpdates = true
-              timeZone               = "UTC"
-            },
-            var.enable_hotpatching ? {
-              patchSettings = {
-                patchMode         = "AutomaticByPlatform"
-                enableHotpatching = true
-                automaticByPlatformSettings = {
-                  rebootSetting = "IfRequired"
-                }
-              }
-            } : {}
-          )
-        }
-
-        # Optional inline bootstrap: base64-encoded register-windows-runner.ps1 is
-        # surfaced to the instance via VMSS userData and decoded by the CSE at boot.
-        userData = local.use_inline_bootstrap ? var.bootstrap_script_inline_base64 : null
-
-        storageProfile = {
-          diskControllerType = var.disk_controller_type
-
-          imageReference = {
-            publisher = "MicrosoftWindowsServer"
-            offer     = "WindowsServer"
-            sku       = var.windows_image_sku
-            version   = "latest"
+      virtualMachineProfile = merge(
+        {
+          priority       = "Spot"
+          evictionPolicy = var.eviction_policy
+          billingProfile = {
+            maxPrice = var.max_bid_price
           }
-          osDisk = {
-            createOption = "FromImage"
-            caching      = "ReadWrite"
-            diskSizeGB   = var.os_disk_size_gb
-            managedDisk = {
-              storageAccountType = var.os_disk_storage_account_type
-            }
-          }
-        }
+        },
+        var.license_type != null ? { licenseType = var.license_type } : {},
+        {
 
-        networkProfile = {
-          networkApiVersion = "2022-11-01"
-          networkInterfaceConfigurations = [
-            {
-              name = "${var.vmss_name}-nic"
-              properties = {
-                primary                     = true
-                enableAcceleratedNetworking = true
-                ipConfigurations = [
-                  {
-                    name = "ipconfig1"
-                    properties = {
-                      subnet = {
-                        id = var.subnet_id
-                      }
-                      primary                 = true
-                      privateIPAddressVersion = "IPv4"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-
-        # Extensions are defined inline
-        extensionProfile = {
-          extensions = concat([
-            {
-              name = "CustomScriptExtension"
-              properties = {
-                publisher               = "Microsoft.Compute"
-                type                    = "CustomScriptExtension"
-                typeHandlerVersion      = "1.10"
-                autoUpgradeMinorVersion = true
-                protectedSettings       = local.cse_protected_settings
-              }
-            }
-            ],
-            local.dsc_extension,
-            [
+          osProfile = {
+            computerNamePrefix = substr(var.vmss_name, 0, 9)
+            adminUsername      = var.admin_username
+            adminPassword      = coalesce(var.admin_password, random_password.admin_password.result)
+            windowsConfiguration = merge(
               {
-                name = "ApplicationHealthWindows"
+                provisionVMAgent       = true
+                enableAutomaticUpdates = true
+                timeZone               = "UTC"
+              },
+              var.enable_hotpatching ? {
+                patchSettings = {
+                  patchMode         = "AutomaticByPlatform"
+                  enableHotpatching = true
+                  automaticByPlatformSettings = {
+                    rebootSetting = "IfRequired"
+                  }
+                }
+              } : {}
+            )
+          }
+
+          # Optional inline bootstrap: base64-encoded register-windows-runner.ps1 is
+          # surfaced to the instance via VMSS userData and decoded by the CSE at boot.
+          userData = local.use_inline_bootstrap ? var.bootstrap_script_inline_base64 : null
+
+          storageProfile = {
+            diskControllerType = var.disk_controller_type
+
+            imageReference = {
+              publisher = "MicrosoftWindowsServer"
+              offer     = "WindowsServer"
+              sku       = var.windows_image_sku
+              version   = "latest"
+            }
+            osDisk = {
+              createOption = "FromImage"
+              caching      = "ReadWrite"
+              diskSizeGB   = var.os_disk_size_gb
+              managedDisk = {
+                storageAccountType = var.os_disk_storage_account_type
+              }
+            }
+          }
+
+          networkProfile = {
+            networkApiVersion = "2022-11-01"
+            networkInterfaceConfigurations = [
+              {
+                name = "${var.vmss_name}-nic"
                 properties = {
-                  publisher               = "Microsoft.ManagedServices"
-                  type                    = "ApplicationHealthWindows"
-                  typeHandlerVersion      = "1.0"
-                  autoUpgradeMinorVersion = true
-                  settings                = local.app_health_settings
+                  primary                     = true
+                  enableAcceleratedNetworking = true
+                  ipConfigurations = [
+                    {
+                      name = "ipconfig1"
+                      properties = {
+                        subnet = {
+                          id = var.subnet_id
+                        }
+                        primary                 = true
+                        privateIPAddressVersion = "IPv4"
+                      }
+                    }
+                  ]
                 }
               }
-          ])
-        }
-      }
+            ]
+          }
+
+          # Extensions are defined inline
+          extensionProfile = {
+            extensions = concat([
+              {
+                name = "CustomScriptExtension"
+                properties = {
+                  publisher               = "Microsoft.Compute"
+                  type                    = "CustomScriptExtension"
+                  typeHandlerVersion      = "1.10"
+                  autoUpgradeMinorVersion = true
+                  protectedSettings       = local.cse_protected_settings
+                }
+              }
+              ],
+              local.dsc_extension,
+              [
+                {
+                  name = "ApplicationHealthWindows"
+                  properties = {
+                    publisher               = "Microsoft.ManagedServices"
+                    type                    = "ApplicationHealthWindows"
+                    typeHandlerVersion      = "1.0"
+                    autoUpgradeMinorVersion = true
+                    settings                = local.app_health_settings
+                  }
+                }
+            ])
+          }
+      })
 
       # Automatic instance repair
       automaticRepairsPolicy = {
