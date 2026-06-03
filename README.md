@@ -8,6 +8,11 @@ It fills the Windows VMSS gap beside the two Linux ACA runner modules in the loc
 - Org Linux ACA: `martinopedal/terraform-azurerm-github-runners-alz-corp`
 - Personal Windows VMSS: this module
 
+
+## Network egress requirements
+
+Force-tunneled ALZ spokes must allow the runner dependencies documented in [EGRESS.md](./EGRESS.md) at the hub Azure Firewall. The canonical implemented list for this estate is maintained in `alz-avm-tf-demo/alz-firewall-ops` as `FIREWALL-EGRESS-IMPLEMENTED.md`.
+
 ## ALZ placement
 
 Use this module only for the personal Windows runner pool on sub-5. Sub-5 is outside the network governance plane and inside the security plane. Do not use it for org Windows runners. Pool W-org is archived and the org runner path is Linux ACA.
