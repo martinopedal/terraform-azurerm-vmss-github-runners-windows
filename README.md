@@ -53,7 +53,7 @@ module "windows_runners" {
   github_owner         = "martinopedal"
   github_repo_list     = ["personal-runners-infra"]
   bootstrap_script_url = "https://raw.githubusercontent.com/martinopedal/terraform-azurerm-vmss-github-runners-windows/v1.3.0/scripts/register-windows-runner.ps1"
-  runner_labels        = ["self-hosted", "personal-win"]
+  runner_labels        = ["self-hosted", "personal", "priv", "windows"]
 
   enable_telemetry = true
 
@@ -89,7 +89,7 @@ module "windows_runners" {
   github_owner         = "martinopedal"
   github_repo_list     = ["personal-runners-infra"]
   bootstrap_script_url = "https://raw.githubusercontent.com/martinopedal/terraform-azurerm-vmss-github-runners-windows/v1.3.0/scripts/register-windows-runner.ps1"
-  runner_labels        = ["self-hosted", "personal-win"]
+  runner_labels        = ["self-hosted", "personal", "priv", "windows"]
   orchestration_mode   = "Flexible"
 
   github_app_id              = 123456
@@ -97,6 +97,38 @@ module "windows_runners" {
   github_app_private_key_pem = var.github_app_private_key_pem
 
   enable_telemetry = true
+}
+```
+
+### Public Pool (P-pub) Example
+
+Deploy a public-facing runner pool (for sub-5 public/untrusted scenarios):
+
+```hcl
+module "windows_runners_pub" {
+  source  = "martinopedal/vmss-github-runners-windows/azurerm"
+  version = "1.3.0"
+
+  location             = "swedencentral"
+  resource_group_name  = "rg-pool-w-pub-swedencentral-001"
+  subnet_id            = data.azurerm_subnet.pub_subnet.id
+  vmss_name            = "vmss-pool-w-pub"
+  key_vault_name       = "kv-pool-w-pub-001"
+  github_owner         = "martinopedal"
+  github_repo_list     = ["public-infra"]
+  bootstrap_script_url = "https://raw.githubusercontent.com/martinopedal/terraform-azurerm-vmss-github-runners-windows/v1.3.0/scripts/register-windows-runner.ps1"
+  runner_labels        = ["self-hosted", "personal", "pub", "windows"]
+
+  github_app_id              = 123456
+  github_app_installation_id = 987654321
+  github_app_private_key_pem = var.github_app_private_key_pem
+
+  enable_telemetry = true
+
+  tags = {
+    environment = "public"
+    managed-by  = "terraform"
+  }
 }
 ```
 
