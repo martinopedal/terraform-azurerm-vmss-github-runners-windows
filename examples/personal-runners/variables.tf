@@ -105,9 +105,9 @@ variable "bootstrap_script_url" {
 }
 
 variable "runner_labels" {
-  description = "Runner labels. Canonical personal Windows scheme is the 2-label compound [self-hosted, personal-windows]."
+  description = "Runner labels. Canonical personal Windows scheme per ADR coordinator-runner-label-isolation-2026-05-27T1948Z: P-priv uses [self-hosted, personal, priv, windows]; P-pub uses [self-hosted, personal, pub, windows]."
   type        = list(string)
-  default     = ["self-hosted", "personal-windows"]
+  default     = ["self-hosted", "personal", "priv", "windows"]
 }
 
 variable "priority_mix_base_regular_count" {
