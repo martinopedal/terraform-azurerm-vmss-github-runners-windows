@@ -24,6 +24,8 @@ This module deploys the Windows VMSS and its directly attached resources only. U
 
 The module does not create the resource group, VNet, subnet, NAT Gateway, GitHub App, or GitHub repository permissions. Those stay in the consuming configuration.
 
+The `subnet_id` you pass in must already exist and comply with your landing-zone policies. Many landing zones enforce an Azure Policy that requires every subnet to have a Network Security Group attached, so ensure the subnet you supply has one.
+
 ## Windows VMSS hardening checks
 
 Common Windows VMSS runner hardening checks this module accounts for:
