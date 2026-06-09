@@ -412,7 +412,7 @@ try {
         }
 
         # DSC (Layer 4) is owned by the DSC VM extension, NOT by this script.
-        # The extension pulls the canonical config from alz-avm-tf-demo/dsc-configs
+        # The extension pulls the DSC configuration from a consumer-hosted DSC package
         # release-asset zip. See module main.vmss.tf dsc_* inputs.
 
         # 5. Watchdog

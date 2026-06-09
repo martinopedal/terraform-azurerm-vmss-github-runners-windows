@@ -1,10 +1,10 @@
 # Personal Windows runners on VMSS
 
-Working example that consumes this module for a personal runner pool. Mirrors the layout used in `martinopedal/default-infra`.
+Working example that consumes this module for a personal runner pool. Mirrors a typical consumer layout.
 
 ## Prerequisites
 
-1. Resource group `rg-pool-w-personal-swedencentral-001`.
+1. Resource group, for example `rg-runners-windows-example`.
 2. Virtual network with a subnet for runner NICs. NAT Gateway or hub peering for egress.
 3. Key Vault holding the GitHub App private key as a secret named `github-app-private-key`. The Key Vault is provisioned by the module if you let it create one, or referenced by name if you bring your own.
 4. GitHub App with `actions:write` and `metadata:read`. No webhook is needed for self-hosted runners.
@@ -53,4 +53,4 @@ The default is the canonical 2-label compound: `["self-hosted", "personal-window
 runs-on: [self-hosted, personal-windows]
 ```
 
-Do not use the legacy 4-label form `[self-hosted, personal, windows, x64]`. The lock ADR (`coordinator-runner-module-architecture-lock-2026-05-27`) makes the 2-label compound canonical for all personal runners.
+Do not use the legacy 4-label form `[self-hosted, personal, windows, x64]`. Use the 2-label compound for consistency.

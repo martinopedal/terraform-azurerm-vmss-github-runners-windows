@@ -195,7 +195,7 @@ resource "azapi_resource" "vmss_windows" {
     }
     precondition {
       condition     = !var.dsc_enabled || (var.dsc_config_url != null && var.dsc_config_sas_token != null)
-      error_message = "dsc_enabled = true requires both dsc_config_url and dsc_config_sas_token (see dsc-configs/docs/consuming.md for the canonical fetch-zip + blob + SAS pattern)."
+      error_message = "dsc_enabled = true requires both dsc_config_url and dsc_config_sas_token (see the DSC packaging repository's consuming guide for the fetch-zip + blob + SAS pattern)."
     }
   }
 }

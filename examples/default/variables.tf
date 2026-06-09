@@ -12,31 +12,31 @@ variable "location" {
 variable "resource_group_name" {
   description = "Resource group that will host the VMSS."
   type        = string
-  default     = "rg-pool-w-personal-swedencentral-001"
+  default     = "rg-runners-windows-example"
 }
 
 variable "subnet_name" {
   description = "Existing subnet for runner NICs."
   type        = string
-  default     = "subnet-pool-w-personal"
+  default     = "subnet-runners-windows"
 }
 
 variable "vnet_name" {
   description = "Existing virtual network containing the runner subnet."
   type        = string
-  default     = "vnet-pool-w-personal-swedencentral"
+  default     = "vnet-runners-windows-swedencentral"
 }
 
 variable "vnet_resource_group_name" {
   description = "Resource group containing the runner subnet's virtual network."
   type        = string
-  default     = "rg-network-pool-w-personal-swedencentral"
+  default     = "rg-network-runners-windows-swedencentral"
 }
 
 variable "vmss_name" {
   description = "Name of the VMSS."
   type        = string
-  default     = "vmss-pool-w-personal"
+  default     = "vmss-runners-windows"
 }
 
 variable "vmss_sku" {
@@ -65,7 +65,7 @@ variable "key_vault_name" {
 variable "github_owner" {
   description = "GitHub owner (org or user) the runners register against."
   type        = string
-  default     = "martinopedal"
+  default     = "my-github-org"
 }
 
 variable "github_repo_list" {
@@ -107,7 +107,7 @@ variable "bootstrap_script_url" {
 variable "runner_labels" {
   description = "Runner labels. Canonical personal Windows scheme per ADR coordinator-runner-label-isolation-2026-05-27T1948Z: P-priv uses [self-hosted, personal, priv, windows]; P-pub uses [self-hosted, personal, pub, windows]."
   type        = list(string)
-  default     = ["self-hosted", "personal", "priv", "windows"]
+  default     = ["self-hosted", "windows"]
 }
 
 variable "priority_mix_base_regular_count" {
@@ -147,6 +147,6 @@ variable "tags" {
     environment = "personal"
     managed-by  = "terraform"
     lifecycle   = "permanent"
-    owner       = "martinopedal"
+    owner       = "platform-team"
   }
 }

@@ -15,7 +15,7 @@ variable "resource_group_name" {
 }
 
 variable "subscription_id" {
-  description = "Subscription ID used to compose resource parent_id values. When set to a non-empty value it is used directly so parent_id is known at plan time. This avoids a spurious azapi ForceNew (VMSS/UAMI replacement) when the azurerm provider defers data.azurerm_client_config to apply — e.g. under OIDC auth on CI runners, where object_id resolution makes the whole data source known-after-apply. Defaults to the provider's client_config subscription for backward compatibility."
+  description = "Subscription ID used to compose resource parent_id values. When set to a non-empty value it is used directly so parent_id is known at plan time. This avoids a spurious azapi ForceNew (VMSS/UAMI replacement) when the azurerm provider defers data.azurerm_client_config to apply, for example under OIDC auth on CI runners, where object_id resolution makes the whole data source known-after-apply. Defaults to the provider's client_config subscription for backward compatibility."
   type        = string
   default     = ""
 }
@@ -209,7 +209,7 @@ variable "tags" {
 }
 
 variable "orchestration_mode" {
-  description = "VMSS orchestration mode. 'Uniform' (default) is the classic mode and matches v1.1.0 behavior. 'Flexible' uses individual VMs underneath, supports mixing fault domains, and is required by some consumer scenarios (e.g. personal pool-w-pub). Immutable after VMSS creation - changing this value triggers destroy/recreate."
+  description = "VMSS orchestration mode. 'Uniform' (default) is the classic mode and matches v1.1.0 behavior. 'Flexible' uses individual VMs underneath, supports mixing fault domains, and is required by some consumer scenarios (for example a public-facing pool). Immutable after VMSS creation - changing this value triggers destroy/recreate."
   type        = string
   default     = "Uniform"
   validation {
@@ -290,11 +290,12 @@ variable "app_health_request_path" {
 # ---------------------------------------------------------------------------
 # DSC extension (Layer 4 of the 5-layer auto-heal model)
 # ---------------------------------------------------------------------------
-# The DSC configuration itself lives in alz-avm-tf-demo/dsc-configs and is
+# The DSC configuration itself lives in a separate DSC packaging repository and is
 # published as a release-asset zip (e.g. runner-supervisor/v0.1.0). The
 # consumer is responsible for fetching that zip and hosting it on a private
 # blob with a read-only SAS, then passing url + sas + script + function to
-# this module. See dsc-configs/docs/consuming.md for the canonical pattern.
+# this module. See the DSC packaging repository's consuming guide for the
+# pattern.
 # ---------------------------------------------------------------------------
 
 variable "dsc_enabled" {
@@ -304,7 +305,7 @@ variable "dsc_enabled" {
 }
 
 variable "dsc_config_url" {
-  description = "HTTPS URL of the DSC configuration zip (produced by alz-avm-tf-demo/dsc-configs/scripts/Build-DscPackage.ps1 and hosted on a private blob). Required when dsc_enabled = true. Pin to a semver release tag (e.g. runner-supervisor/v0.1.0)."
+  description = "HTTPS URL of the DSC configuration zip (produced by your DSC packaging script, for example Build-DscPackage.ps1, and hosted on a private blob). Required when dsc_enabled = true. Pin to a semver release tag (e.g. runner-supervisor/v0.1.0)."
   type        = string
   default     = null
 }
@@ -317,19 +318,19 @@ variable "dsc_config_sas_token" {
 }
 
 variable "dsc_configuration_script" {
-  description = "Script filename inside the DSC zip (relative to the zip root). Defaults to RunnerSupervisor.ps1 which matches the dsc-configs RunnerSupervisor config."
+  description = "Script filename inside the DSC zip (relative to the zip root). Defaults to RunnerSupervisor.ps1, matching the RunnerSupervisor configuration."
   type        = string
   default     = "RunnerSupervisor.ps1"
 }
 
 variable "dsc_configuration_function" {
-  description = "Name of the Configuration function inside the DSC script. Defaults to RunnerSupervisor which matches the dsc-configs RunnerSupervisor config."
+  description = "Name of the Configuration function inside the DSC script. Defaults to RunnerSupervisor, matching the RunnerSupervisor configuration."
   type        = string
   default     = "RunnerSupervisor"
 }
 
 variable "dsc_configuration_arguments" {
-  description = "Hashtable of arguments passed to the DSC configuration function. Forwarded as-is into the extension's configurationArguments protectedSetting. Default values match dsc-configs RunnerSupervisor signature."
+  description = "Hashtable of arguments passed to the DSC configuration function. Forwarded as-is into the extension's configurationArguments protectedSetting. Default values match the RunnerSupervisor configuration signature."
   type        = map(string)
   default = {
     WatchdogLogPath   = "C:\\runner-watchdog.log"
@@ -338,7 +339,7 @@ variable "dsc_configuration_arguments" {
 }
 
 variable "dsc_configuration_mode_frequency_mins" {
-  description = "DSC LCM consistency check frequency in minutes. 15 matches the dsc-configs architecture doc and is the canonical default."
+  description = "DSC LCM consistency check frequency in minutes. 15 is the canonical default for the RunnerSupervisor configuration."
   type        = number
   default     = 15
 }
@@ -346,8 +347,8 @@ variable "dsc_configuration_mode_frequency_mins" {
 # ---------------------------------------------------------------------------
 # Canonical tag taxonomy
 # ---------------------------------------------------------------------------
-# Every runner resource SHOULD carry these tags so the estate is uniformly
-# discoverable across M1 (Windows VMSS) and M2/M3/M4 (Linux ACA). The module
+# Every runner resource SHOULD carry these tags so resources are uniformly
+# discoverable across the Windows and Linux runner modules. The module
 # automatically injects Module + ModuleVersion + OS=windows; the consumer
 # supplies the rest via canonical_tags. Anything in var.tags merges on top.
 # ---------------------------------------------------------------------------

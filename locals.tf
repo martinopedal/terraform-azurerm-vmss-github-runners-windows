@@ -96,7 +96,7 @@ locals {
 
   # DSC extension - omitted from the extensionProfile list when disabled.
   # When enabled, points at a consumer-hosted blob (zip) produced by
-  # alz-avm-tf-demo/dsc-configs Build-DscPackage.ps1.
+  # a DSC packaging script such as Build-DscPackage.ps1.
   dsc_extension = var.dsc_enabled ? [{
     name = "DSC"
     properties = {
