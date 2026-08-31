@@ -330,7 +330,7 @@ try {
 
     # 2. Mint registration token per auth method. App auth wins only when all
     # App arguments are present; otherwise use the PAT path for back-compat.
-    $repos = $GithubRepoList -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    $repos = @($GithubRepoList -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     if ($repos.Count -lt 1) { throw "GithubRepoList is empty after parsing." }
     $targetRepo = $repos[0]
     Write-Log "Target repo for registration: $GithubOwner/$targetRepo"

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.2
+
+- **Single-repository bootstrap fix**: force `GithubRepoList` parsing to return
+  an array. Without the array wrapper, PowerShell collapses a single result to
+  a string and `$repos[0]` selects the first character (`azure-analyzer` became
+  `a`), causing the GitHub registration-token request to return 404.
+
 ## 1.3.0
 
 - **Protected GitHub App private key path**: new sensitive `github_app_private_key_pem` input. When set with `github_app_id` and `github_app_installation_id`, the CSE protectedSettings command writes the PEM to a transient local file and calls `register-windows-runner.ps1` with `-PrivateKeyPath`.
